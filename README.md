@@ -18,7 +18,7 @@ Download [the latest JAR][1] or grab via Maven:
 
 ## Examples
 
-#### Initializing Client
+#### Initializing Infoblox Client
 
 ```java
 InfobloxClient client = InfobloxClient.builder()
@@ -28,11 +28,10 @@ InfobloxClient client = InfobloxClient.builder()
             .tlsVerify(false)
             .build();
 ```
-  - Keystore should be of type [PKCS#12][2] format. 
-  - For loading the keystore from classpath use, `classpath:/<your/cws/keystore/path>.p12`
-  - If the keystore contains multiple cert entries, use [.keyAlias("cws-client-key")][3] to select the 
-    proper client private key.
-  - To enable http debugging for troubleshooting, set [.debug(true)][4] to the [CwsClient.builder()][5]
+  - For TLS verification, set the CA truststore using [trustStore()][2] & [trustStorePassword()][3] methods.
+  - Truststore should be of type [PKCS#12][4] format. 
+  - For loading the Truststore from classpath use, `classpath:/<your/truststore/path>.p12`
+  - To enable http debugging for troubleshooting, set [.debug(true)][5] to the [InfobloxClient.builder()][6]
 
 ## Testing
 
@@ -78,6 +77,12 @@ License
 <!-- Badges -->
 
 [1]: https://search.maven.org/remote_content?g=com.oneops&a=infoblox-java&v=LATEST
+[2]: http://oneops.com/infoblox-java/javadocs/com/oneops/infoblox/InfobloxClient.Builder.html#trustStore-java.lang.String-
+[3]: http://oneops.com/infoblox-java/javadocs/com/oneops/infoblox/InfobloxClient.Builder.html#trustStorePassword-java.lang.String-
+[4]: https://en.wikipedia.org/wiki/PKCS_12
+[5]: http://oneops.com/infoblox-java/javadocs/com/oneops/infoblox/InfobloxClient.Builder.html#debug-boolean-
+[6]: http://oneops.com/infoblox-java/javadocs/com/oneops/infoblox/InfobloxClient.Builder.html
+
 
 [maven-url]: http://search.maven.org/#search%7Cgav%7C1%7Cg%3A%22com.oneops%22%20AND%20a%3A%22infoblox-java%22
 [maven-svg]: https://img.shields.io/maven-central/v/com.oneops/infoblox-java.svg?label=Maven%20Central&style=flat-square

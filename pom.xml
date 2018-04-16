@@ -89,11 +89,11 @@
       <artifactId>logging-interceptor</artifactId>
       <version>${okhttp.version}</version>
     </dependency>
-    <dependency>
+    <!-- dependency>
       <groupId>net.jodah</groupId>
       <artifactId>failsafe</artifactId>
       <version>${failsafe.version}</version>
-    </dependency>
+    </dependency-->
 
     <!-- Auto Value and extensions -->
     <dependency>
