@@ -74,7 +74,7 @@ public abstract class InfobloxClient {
   public abstract String endPoint();
 
   /**
-   * IBA WAPI version. Browse to <a href="https://{infoblox}/wapidoc/">WapiDoc</a> to see the
+   * IBA WAPI version. Browse to <a href="https://infoblox-server/wapidoc/">WapiDoc</a> to see the
    * current wapi version of Infoblox appliance. Defaults to 2.5
    */
   public abstract String wapiVersion();
