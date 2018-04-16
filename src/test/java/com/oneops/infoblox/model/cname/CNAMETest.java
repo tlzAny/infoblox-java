@@ -42,7 +42,7 @@ class CNAMETest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"oneops-test", "*.oneops-test"})
+  @ValueSource(strings = {"oneops-test"})
   void create(String prefix) throws IOException {
 
     final String canonicalName = String.format("%s.%s", prefix, domain());

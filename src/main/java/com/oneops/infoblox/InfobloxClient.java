@@ -18,20 +18,29 @@ import com.oneops.infoblox.model.cname.CNAME;
 import com.oneops.infoblox.model.host.Host;
 import com.oneops.infoblox.model.host.HostIPv4Req;
 import com.oneops.infoblox.model.host.HostReq;
+import com.oneops.infoblox.model.mx.MX;
+import com.oneops.infoblox.model.ref.Ref;
 import com.oneops.infoblox.model.ref.RefObject;
 import com.oneops.infoblox.model.zone.ZoneAuth;
+import com.oneops.infoblox.tls.DelegatingSSLSocketFactory;
+import com.oneops.infoblox.tls.TrustAllCertsManager;
 import com.squareup.moshi.Moshi;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.annotation.Annotation;
+import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -42,6 +51,8 @@ import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.ResponseBody;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import retrofit2.Call;
 import retrofit2.Converter;
 import retrofit2.Response;
@@ -57,11 +68,9 @@ import retrofit2.converter.moshi.MoshiConverterFactory;
 @AutoValue
 public abstract class InfobloxClient {
 
-  private final Logger log = Logger.getLogger(getClass().getSimpleName());
+  private final Logger log = LoggerFactory.getLogger(getClass());
 
-  /**
-   * IBA IP address of management interface
-   */
+  /** IBA IP address of management interface */
   public abstract String endPoint();
 
   /**
@@ -70,58 +79,72 @@ public abstract class InfobloxClient {
    */
   public abstract String wapiVersion();
 
-  /**
-   * IBA user name
-   */
+  /** IBA user name */
   @Redacted
   public abstract String userName();
 
-  /**
-   * IBA user password
-   */
+  /** IBA user password */
   @Redacted
   public abstract String password();
 
-  /**
-   * IBA default view. Defaults to 'default`.
-   */
+  /** IBA default view. Defaults to 'default`. */
   public abstract String dnsView();
 
-  /**
-   * Checks if TLS certificate validation is enabled for communicating with Infoblox.
-   */
+  /** Checks if TLS certificate validation is enabled for communicating with Infoblox. */
   public abstract boolean tlsVerify();
 
   /**
-   * Enable http curl logging for debugging.
+   * PKCS#12 (.p12) file path contains trusted CA certs. If the path starts with <b>classpath:</b>,
+   * it will be loaded from classpath. This is optional and required only if {@link #tlsVerify()} is
+   * enabled.
    */
-  public abstract boolean debug();
+  public abstract Optional<String> trustStore();
 
   /**
-   * IBA WAPI connection/read/write timeout.
+   * TrustStore password. Default password is 'changeit'. This is optional and required only if
+   * {@link #tlsVerify()} is enabled.
    */
+  @Redacted
+  public abstract Optional<String> trustStorePassword();
+
+  /** IBA WAPI connection/read/write timeout. Default is 10 sec */
   public abstract int timeout();
+
+  /** Enable http curl logging for debugging. */
+  public abstract boolean debug();
 
   private Infoblox infoblox;
 
   private Converter<ResponseBody, Error> errResConverter;
 
   /**
-   * Initializes the TLS retrofit client.
+   * Initializes the TLS retrofit client. Server Name Indication (SNI) TLS extension is disabled by
+   * default as it never worked with Infoblox.
    *
    * @throws GeneralSecurityException if any error initializing the TLS context.
    */
   private void init() throws GeneralSecurityException {
     log.info("Initializing " + toString());
-    Moshi moshi = new Moshi.Builder()
-        .add(JsonAdapterFactory.create())
-        .add(new RefObject.JsonAdapter())
-        .build();
+    Moshi moshi =
+        new Moshi.Builder()
+            .add(JsonAdapterFactory.create())
+            .add(new RefObject.JsonAdapter())
+            .build();
 
     TrustManager[] trustManagers = getTrustManagers();
     SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
     sslContext.init(null, trustManagers, new SecureRandom());
-    SSLSocketFactory socketFactory = sslContext.getSocketFactory();
+    SSLSocketFactory delegate = sslContext.getSocketFactory();
+
+    // Disable SNIExtension by passing null host.
+    SSLSocketFactory socketFactory =
+        new DelegatingSSLSocketFactory(delegate) {
+          @Override
+          public SSLSocket createSocket(Socket socket, String host, int port, boolean autoClose)
+              throws IOException {
+            return super.createSocket(socket, null, port, autoClose);
+          }
+        };
 
     String basicCreds = Credentials.basic(userName(), password());
     OkHttpClient.Builder okBuilder =
@@ -176,49 +199,61 @@ public abstract class InfobloxClient {
   }
 
   /**
-   * Returns the trust-store manager. It's uses jdk trust-store if {@link #tlsVerify()} is enabled
-   * and can customize using the following environment variables.
-   *
-   * <p>- javax.net.ssl.trustStore - Default trust-store , - javax.net.ssl.trustStoreType - Default
-   * trust-store type, - javax.net.ssl.trustStorePassword - Default trust-store password
-   *
-   * <p>If the {@link #tlsVerify()} is disabled, it trusts all certs using a custom trust manager.
+   * Returns the trust-store manager.If the {@link #tlsVerify()} is disabled, it trusts all certs
+   * using a custom trust manager.
    *
    * @return trust managers.
    * @throws GeneralSecurityException if any error initializing trust store.
    */
   private TrustManager[] getTrustManagers() throws GeneralSecurityException {
-
     final TrustManager[] trustMgrs;
     if (tlsVerify()) {
-      log.info("Using JDK trust-store for TLS check.");
-      TrustManagerFactory trustManagerFactory =
+      KeyStore trustStore = loadTrustStore();
+      final TrustManagerFactory trustManagerFactory =
           TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-      trustManagerFactory.init((KeyStore) null); // Uses JDK trust-store.
+      trustManagerFactory.init(trustStore);
       trustMgrs = trustManagerFactory.getTrustManagers();
     } else {
       log.info("Skipping TLS certs verification.");
-      trustMgrs =
-          new TrustManager[]{
-              new X509TrustManager() {
-                @Override
-                public void checkClientTrusted(
-                    java.security.cert.X509Certificate[] chain, String authType) {
-                }
-
-                @Override
-                public void checkServerTrusted(
-                    java.security.cert.X509Certificate[] chain, String authType) {
-                }
-
-                @Override
-                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                  return new java.security.cert.X509Certificate[]{};
-                }
-              }
-          };
+      trustMgrs = new X509TrustManager[] {new TrustAllCertsManager()};
     }
     return trustMgrs;
+  }
+
+  /**
+   * Load trust store (PKCS12) from the given file/classpath resource.
+   *
+   * @throws IllegalStateException if the file/classpath resource doesn't exist.
+   */
+  @SuppressWarnings("ConstantConditions")
+  private KeyStore loadTrustStore() {
+
+    String tsPath = trustStore().get().toLowerCase();
+    char[] tsPasswd = trustStorePassword().get().toCharArray();
+    boolean fileResource = true;
+
+    if (tsPath.startsWith("classpath:")) {
+      tsPath = tsPath.replace("classpath:", "");
+      fileResource = false;
+    }
+
+    try {
+      try (InputStream ins =
+          fileResource
+              ? Files.newInputStream(Paths.get(tsPath))
+              : getClass().getResourceAsStream(tsPath)) {
+
+        log.info("Loading the trustStore: {}", tsPath);
+        if (ins == null) {
+          throw new IllegalStateException("Can't find the trustStore: " + tsPath);
+        }
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(ins, tsPasswd);
+        return ks;
+      }
+    } catch (IOException | GeneralSecurityException ex) {
+      throw new IllegalStateException("Can't load the trustStore: " + tsPath, ex);
+    }
   }
 
   /**
@@ -256,7 +291,7 @@ public abstract class InfobloxClient {
     return buf.append(endPoint()).append("/wapi/v").append(wapiVersion()).append("/").toString();
   }
 
-  ////// Auth Zone Record //////
+  // =======(Auth Zone Record)=======
 
   /**
    * Fetch all Authoritative Zones.
@@ -295,7 +330,7 @@ public abstract class InfobloxClient {
     return getAuthZones(domainName, SearchModifier.NONE);
   }
 
-  ////// Host Record //////
+  // =======(Host Record)=======
 
   /**
    * Get host information for the given domain name and search option.
@@ -349,18 +384,11 @@ public abstract class InfobloxClient {
         .stream()
         .map(Host::ref)
         .filter(ref -> ref.hasFqdn(domainName))
-        .map(
-            ref -> {
-              try {
-                return exec(infoblox.deleteRef(ref.value())).result();
-              } catch (IOException ioe) {
-                throw new IllegalStateException("Error deleting Host record ref: " + ref, ioe);
-              }
-            })
+        .map(this::deleteRef)
         .collect(Collectors.toList());
   }
 
-  ////// A Record //////
+  // =======(A Record)=======
 
   /**
    * Get address records (A Record) for the given domain name and search option.
@@ -388,6 +416,22 @@ public abstract class InfobloxClient {
   }
 
   /**
+   * Get address record (A Record) for the given domain name and IPv4 address.
+   *
+   * @param domainName FQDN
+   * @param ipv4Address IPv4 address
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<ARec> getARec(String domainName, String ipv4Address) throws IOException {
+    requireNonNull(domainName, "Domain name is null");
+    requireIPv4(ipv4Address);
+    Map<String, String> options = new HashMap<>(2);
+    options.put("name", domainName);
+    options.put("ipv4addr", ipv4Address);
+    return exec(infoblox.queryARec(options)).result();
+  }
+
+  /**
    * Creates an address record (A Record)
    *
    * @param domainName FQDN
@@ -396,6 +440,7 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public ARec createARec(String domainName, String ipv4Address) throws IOException {
+    requireNonNull(domainName, "Domain name is null");
     requireIPv4(ipv4Address);
     Map<String, String> req = new HashMap<>(2);
     req.put("name", domainName);
@@ -415,14 +460,24 @@ public abstract class InfobloxClient {
         .stream()
         .map(ARec::ref)
         .filter(ref -> ref.hasFqdn(domainName))
-        .map(
-            ref -> {
-              try {
-                return exec(infoblox.deleteRef(ref.value())).result();
-              } catch (IOException ioe) {
-                throw new IllegalStateException("Error deleting A record ref: " + ref, ioe);
-              }
-            })
+        .map(this::deleteRef)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Deletes an address record (A Record) with given domain name and IPv4 address.
+   *
+   * @param domainName fqdn for the A record.
+   * @param ipv4Address IPv4 address
+   * @return list of A record obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deleteARec(String domainName, String ipv4Address) throws IOException {
+    return getARec(domainName, ipv4Address)
+        .stream()
+        .map(ARec::ref)
+        .filter(ref -> ref.hasFqdn(domainName))
+        .map(this::deleteRef)
         .collect(Collectors.toList());
   }
 
@@ -451,8 +506,7 @@ public abstract class InfobloxClient {
         .collect(Collectors.toList());
   }
 
-  ////// AAAA Record //////
-
+  // =======(AAAA Record)=======
   /**
    * Get IPv6 address records (AAAA) for the given domain name and search option.
    *
@@ -487,6 +541,7 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public AAAA createAAAARec(String domainName, String ipv6Address) throws IOException {
+    requireNonNull(domainName, "Domain name is null");
     requireIPv6(ipv6Address);
     Map<String, String> req = new HashMap<>(2);
     req.put("name", domainName);
@@ -506,14 +561,7 @@ public abstract class InfobloxClient {
         .stream()
         .map(AAAA::ref)
         .filter(ref -> ref.hasFqdn(domainName))
-        .map(
-            ref -> {
-              try {
-                return exec(infoblox.deleteRef(ref.value())).result();
-              } catch (IOException ioe) {
-                throw new IllegalStateException("Error deleting AAAA record ref: " + ref, ioe);
-              }
-            })
+        .map(this::deleteRef)
         .collect(Collectors.toList());
   }
 
@@ -542,8 +590,7 @@ public abstract class InfobloxClient {
         .collect(Collectors.toList());
   }
 
-  ////// CNAME Record //////
-
+  // =======(CNAME Record)=======
   /**
    * Get canonical records (CNAME) for the given alias name and search option.
    *
@@ -597,14 +644,7 @@ public abstract class InfobloxClient {
         .stream()
         .map(CNAME::ref)
         .filter(ref -> ref.hasFqdn(aliasName))
-        .map(
-            ref -> {
-              try {
-                return exec(infoblox.deleteRef(ref.value())).result();
-              } catch (IOException ioe) {
-                throw new IllegalStateException("Error deleting CNAME record ref: " + ref, ioe);
-              }
-            })
+        .map(this::deleteRef)
         .collect(Collectors.toList());
   }
 
@@ -627,17 +667,115 @@ public abstract class InfobloxClient {
               try {
                 return exec(infoblox.modifyCNAMERec(ref.value(), req)).result();
               } catch (IOException ioe) {
-                throw new IllegalStateException("Error modifying A record ref: " + ref, ioe);
+                throw new IllegalStateException("Error modifying CNAME record ref: " + ref, ioe);
               }
             })
         .collect(Collectors.toList());
   }
 
-  ////// TXT Record //////
+  // =======(MX Record)=======
 
-  ////// PTR Record //////
+  /**
+   * Get mail exchange (MX) record for the given domain name and search option.
+   *
+   * @param domainName fqdn
+   * @return list of matching {@link MX}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<MX> getMXRec(String domainName, SearchModifier modifier) throws IOException {
+    requireNonNull(domainName, "Domain name is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put("name" + modifier.getValue(), domainName);
+    return exec(infoblox.queryMXRec(options)).result();
+  }
 
-  ////// SRV Record //////
+  /**
+   * Get mail exchange (MX) record for the given domain name.
+   *
+   * @param domainName fqdn
+   * @return list of matching {@link MX}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<MX> getMXRec(String domainName) throws IOException {
+    return getMXRec(domainName, SearchModifier.NONE);
+  }
+
+  /**
+   * Creates mail exchange (MX) record for a domain name.
+   *
+   * @param domainName domain name.
+   * @param mailExchanger Mail server host responsible for accepting email messages on behalf of the
+   *     domain name. The host name must map directly to one or more address record (A, or AAAA) in
+   *     the DNS, and must not point to any CNAME records.
+   * @param preference A value used to prioritize mail delivery if multiple mail servers are
+   *     available, smaller distances are more preferable.
+   * @return {@link MX} record.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public MX createMXRec(String domainName, String mailExchanger, int preference)
+      throws IOException {
+    Map<String, Object> req = new HashMap<>(3);
+    req.put("name", domainName);
+    req.put("mail_exchanger", mailExchanger);
+    req.put("preference", preference);
+    return exec(infoblox.createMXRec(req)).result();
+  }
+
+  /**
+   * Deletes MX record for a domain name.
+   *
+   * @param domainName fqdn.
+   * @return list of MX record obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deleteMXRec(String domainName) throws IOException {
+    return getMXRec(domainName)
+        .stream()
+        .map(MX::ref)
+        .filter(ref -> ref.hasFqdn(domainName))
+        .map(this::deleteRef)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Modify the MX record domain name.
+   *
+   * @param domainName mx domain name.
+   * @param newDomainName new domain name.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<MX> modifyMXRec(String domainName, String newDomainName) throws IOException {
+    return getMXRec(domainName)
+        .stream()
+        .map(MX::ref)
+        .filter(ref -> ref.hasFqdn(domainName))
+        .map(
+            ref -> {
+              Map<String, String> req = new HashMap<>(1);
+              req.put("name", newDomainName);
+              try {
+                return exec(infoblox.modifyMXRec(ref.value(), req)).result();
+              } catch (IOException ioe) {
+                throw new IllegalStateException("Error modifying MX record ref: " + ref, ioe);
+              }
+            })
+        .collect(Collectors.toList());
+  }
+
+  // =======(TXT Record)=======
+
+  // =======(PTR Record)=======
+
+  // =======(SRV Record)=======
+
+  /** Delete an infoblox reference object. */
+  private String deleteRef(Ref ref) {
+    try {
+      return exec(infoblox.deleteRef(ref.value())).result();
+    } catch (IOException ioe) {
+      throw new IllegalStateException("Error deleting record ref: " + ref, ioe);
+    }
+  }
 
   /**
    * Returns the builder for {@link InfobloxClient} with default values for un-initialized optional
@@ -669,9 +807,19 @@ public abstract class InfobloxClient {
 
     public abstract Builder tlsVerify(boolean tlsVerify);
 
+    public abstract Builder trustStore(String trustStore);
+
+    public abstract Builder trustStorePassword(String trustStorePassword);
+
     public abstract Builder timeout(int timeout);
 
     public abstract Builder debug(boolean debug);
+
+    abstract boolean tlsVerify();
+
+    abstract Optional<String> trustStore();
+
+    abstract Optional<String> trustStorePassword();
 
     abstract InfobloxClient autoBuild();
 
@@ -681,11 +829,18 @@ public abstract class InfobloxClient {
      * @return client.
      */
     public InfobloxClient build() {
+      // Trust-store properties validation if TLS is enabled.
+      if (tlsVerify()) {
+        trustStore().orElseThrow(() -> new IllegalStateException("Truststore path is empty."));
+        trustStorePassword()
+            .orElseThrow(() -> new IllegalStateException("Truststore password is empty."));
+      }
+
       InfobloxClient client = autoBuild();
       try {
         client.init();
       } catch (GeneralSecurityException ex) {
-        throw new IllegalArgumentException("InfobloxClient init failed.", ex);
+        throw new IllegalArgumentException("Infoblox client init failed.", ex);
       }
       return client;
     }

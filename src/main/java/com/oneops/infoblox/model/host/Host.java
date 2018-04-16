@@ -27,6 +27,7 @@ public abstract class Host {
   @Json(name = "_ref")
   public abstract Ref ref();
 
+  /** <b>Do not mutate</b> the returned object. */
   @Json(name = "ipv4addrs")
   public abstract List<Ipv4Addrs> ipv4Addrs();
 
@@ -35,6 +36,7 @@ public abstract class Host {
   @Nullable
   public abstract String view();
 
+  /** <b>Do not mutate</b> the returned object. */
   @Nullable
   public abstract List<String> aliases();
 

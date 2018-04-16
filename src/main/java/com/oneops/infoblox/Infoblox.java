@@ -6,6 +6,7 @@ import com.oneops.infoblox.model.aaaa.AAAA;
 import com.oneops.infoblox.model.cname.CNAME;
 import com.oneops.infoblox.model.host.Host;
 import com.oneops.infoblox.model.host.HostReq;
+import com.oneops.infoblox.model.mx.MX;
 import com.oneops.infoblox.model.zone.ZoneAuth;
 import java.util.List;
 import java.util.Map;
@@ -25,33 +26,25 @@ import retrofit2.http.QueryMap;
  */
 public interface Infoblox {
 
-  /**
-   * Auth zone Record
-   */
+  /** Auth zone Record */
   @GET("zone_auth")
   Call<Result<List<ZoneAuth>>> queryAuthZones();
 
   @GET("zone_auth")
   Call<Result<List<ZoneAuth>>> queryAuthZone(@QueryMap(encoded = true) Map<String, String> options);
 
-  /**
-   * Host Record
-   */
+  /** Host Record */
   @GET("./record:host")
   Call<Result<List<Host>>> queryHostRec(@QueryMap(encoded = true) Map<String, String> options);
 
   @POST("./record:host?_return_fields=name,ipv4addrs,view")
   Call<Result<Host>> createHostRec(@Body HostReq req);
 
-  /**
-   * Delete Record
-   */
+  /** Delete Record */
   @DELETE("./{ref}")
   Call<Result<String>> deleteRef(@Path(value = "ref", encoded = true) String ref);
 
-  /**
-   * A Record
-   */
+  /** A Record */
   @GET("./record:a")
   Call<Result<List<ARec>>> queryARec(@QueryMap(encoded = true) Map<String, String> options);
 
@@ -62,9 +55,7 @@ public interface Infoblox {
   Call<Result<ARec>> modifyARec(
       @Path(value = "ref", encoded = true) String ref, @Body Map<String, String> req);
 
-  /**
-   * AAAA Record
-   */
+  /** AAAA Record */
   @GET("./record:aaaa")
   Call<Result<List<AAAA>>> queryAAAARec(@QueryMap(encoded = true) Map<String, String> options);
 
@@ -75,9 +66,7 @@ public interface Infoblox {
   Call<Result<AAAA>> modifyAAAARec(
       @Path(value = "ref", encoded = true) String ref, @Body Map<String, String> req);
 
-  /**
-   * CNAME Record
-   */
+  /** CNAME Record */
   @GET("./record:cname")
   Call<Result<List<CNAME>>> queryCNAMERec(@QueryMap(encoded = true) Map<String, String> options);
 
@@ -86,6 +75,17 @@ public interface Infoblox {
 
   @PUT("./{ref}?_return_fields=name,canonical,view")
   Call<Result<CNAME>> modifyCNAMERec(
+      @Path(value = "ref", encoded = true) String ref, @Body Map<String, String> req);
+
+  /** MX Record */
+  @GET("./record:mx")
+  Call<Result<List<MX>>> queryMXRec(@QueryMap(encoded = true) Map<String, String> options);
+
+  @POST("./record:mx?_return_fields=name,mail_exchanger,preference,view")
+  Call<Result<MX>> createMXRec(@Body Map<String, Object> req);
+
+  @PUT("./{ref}?_return_fields=name,mail_exchanger,preference,view")
+  Call<Result<MX>> modifyMXRec(
       @Path(value = "ref", encoded = true) String ref, @Body Map<String, String> req);
 
   @POST("logout")

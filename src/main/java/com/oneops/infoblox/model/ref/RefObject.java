@@ -9,8 +9,8 @@ import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 
 /**
- * A qualifier meta annotation and it's JSON type adapter for the {@link Ref}
- * object. This is used for customizing JSON encoding of the _ref string.
+ * A qualifier meta annotation and it's JSON type adapter for the {@link Ref} object. This is used
+ * for customizing JSON encoding of the _ref string.
  *
  * @author Suresh G
  */

@@ -47,9 +47,7 @@ class HostRecTest {
             .build();
   }
 
-  /**
-   * Make sure to clean the host record before each test.
-   */
+  /** Make sure to clean the host record before each test. */
   @BeforeEach
   void clean() throws IOException {
     client.deleteHostRec(fqdn);
@@ -63,7 +61,7 @@ class HostRecTest {
     hostRec = client.getHostRec(fqdn, SearchModifier.REGEX);
     assertTrue(hostRec.isEmpty());
 
-    List<String> ipv4Addrs = Collections.singletonList("10.10.10.20");
+    List<String> ipv4Addrs = Collections.singletonList("10.11.12.13");
     Host newHostRec = client.createHostRec(fqdn, ipv4Addrs);
     List<String> res =
         newHostRec.ipv4Addrs().stream().map(Ipv4Addrs::ipv4Addr).collect(Collectors.toList());

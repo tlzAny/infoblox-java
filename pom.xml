@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.oneops</groupId>
@@ -43,16 +45,21 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <autovalue.version>1.5.3</autovalue.version>
-    <okhttp.version>3.9.1</okhttp.version>
+    <autovalue.version>1.6</autovalue.version>
+    <autovalue.redact.version>1.0.1</autovalue.redact.version>
+    <autovalue.moshi.version>0.4.5</autovalue.moshi.version>
+    <okhttp.version>3.10.0</okhttp.version>
     <moshi.version>1.5.0</moshi.version>
-    <retrofit.version>2.3.0</retrofit.version>
+    <retrofit.version>2.4.0</retrofit.version>
+    <failsafe.version>1.1.0</failsafe.version>
     <mockito.version>2.8.9</mockito.version>
     <junit.platform.version>1.0.0</junit.platform.version>
-    <junit.version>5.1.0-M1</junit.version>
+    <junit.version>5.1.1</junit.version>
     <jsr305.version>3.0.2</jsr305.version>
     <java.version>1.8</java.version>
+    <concurrentunit.version>0.4.3</concurrentunit.version>
     <dnsjava.version>2.1.8</dnsjava.version>
+    <gitcommit.plugin.version>2.2.4</gitcommit.plugin.version>
     <maven.build.timestamp.format>yyyy-MM-dd hh:mm:ss a z</maven.build.timestamp.format>
   </properties>
 
@@ -82,7 +89,18 @@
       <artifactId>logging-interceptor</artifactId>
       <version>${okhttp.version}</version>
     </dependency>
+    <dependency>
+      <groupId>net.jodah</groupId>
+      <artifactId>failsafe</artifactId>
+      <version>${failsafe.version}</version>
+    </dependency>
+
     <!-- Auto Value and extensions -->
+    <dependency>
+      <groupId>com.google.auto.value</groupId>
+      <artifactId>auto-value-annotations</artifactId>
+      <version>${autovalue.version}</version>
+    </dependency>
     <dependency>
       <groupId>com.google.auto.value</groupId>
       <artifactId>auto-value</artifactId>
@@ -92,21 +110,23 @@
     <dependency>
       <groupId>com.ryanharter.auto.value</groupId>
       <artifactId>auto-value-moshi</artifactId>
-      <version>0.4.5</version>
+      <version>${autovalue.moshi.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>com.squareup.auto.value</groupId>
       <artifactId>auto-value-redacted</artifactId>
-      <version>1.0.1</version>
+      <version>${autovalue.redact.version}</version>
       <scope>provided</scope>
     </dependency>
+
     <!-- Logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-simple</artifactId>
       <version>1.7.25</version>
     </dependency>
+
     <!-- Nullability -->
     <dependency>
       <groupId>com.google.code.findbugs</groupId>
@@ -114,6 +134,7 @@
       <version>${jsr305.version}</version>
       <scope>provided</scope>
     </dependency>
+
     <!-- JUnit5 Testing -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -133,6 +154,7 @@
       <version>${dnsjava.version}</version>
       <scope>test</scope>
     </dependency>
+
     <!-- For testing HTTP, HTTPS, and HTTP/2 clients. -->
     <dependency>
       <groupId>com.squareup.okhttp3</groupId>
@@ -140,14 +162,17 @@
       <version>${okhttp.version}</version>
       <scope>test</scope>
     </dependency>
+
+    <!-- For testing multi-threaded code-->
+    <dependency>
+      <groupId>net.jodah</groupId>
+      <artifactId>concurrentunit</artifactId>
+      <version>${concurrentunit.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
-    <resources>
-      <resource>
-        <directory>src/main/resources</directory>
-      </resource>
-    </resources>
 
     <plugins>
       <plugin>
@@ -175,6 +200,7 @@
         </dependencies>
       </plugin>
 
+      <!-- Enforce the maven version -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
@@ -199,6 +225,24 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+
+      <!-- Git Properties plugin-->
+      <plugin>
+        <groupId>pl.project13.maven</groupId>
+        <artifactId>git-commit-id-plugin</artifactId>
+        <version>${gitcommit.plugin.version}</version>
+      </plugin>
+
+      <!-- Javadoc plugin-->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.0.0</version>
+        <configuration>
+          <reportOutputDirectory>${project.basedir}/docs</reportOutputDirectory>
+          <destDir>javadocs</destDir>
+        </configuration>
       </plugin>
 
     </plugins>

@@ -75,10 +75,10 @@ public abstract class Ref {
   }
 
   /**
-   * Checks if reference name contains the given domain name. A URL encoded domain
-   * name is used for the check as it's used in the WAPI reference object.
+   * Checks if reference name contains the given domain name. A URL encoded domain name is used for
+   * the check as it's used in the WAPI reference object.
    *
-   * <p> Warning: Since java doesn't encode asterisk, we have to deal it separately.
+   * <p>Warning: Since java doesn't encode asterisk, we have to deal it separately.
    *
    * @param domainName fqdn
    * @return <code>true</code> if reference contains the domain name.
@@ -86,17 +86,14 @@ public abstract class Ref {
    */
   public boolean hasFqdn(String domainName) {
     try {
-      String encodedName = URLEncoder.encode(domainName, UTF_8.toString())
-          .replace("*", "%2A");
+      String encodedName = URLEncoder.encode(domainName, UTF_8.toString()).replace("*", "%2A");
       return value().contains(encodedName);
     } catch (UnsupportedEncodingException e) {
       return false;
     }
   }
 
-  /**
-   * Json adapter for {@link Error} type, used by Moshi for JSON [de]serialization.
-   */
+  /** Json adapter for {@link Error} type, used by Moshi for JSON [de]serialization. */
   public static JsonAdapter<Ref> jsonAdapter(Moshi moshi) {
     return new AutoValue_Ref.MoshiJsonAdapter(moshi);
   }

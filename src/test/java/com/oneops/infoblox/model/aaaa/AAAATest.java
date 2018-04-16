@@ -45,9 +45,7 @@ class AAAATest {
             .build();
   }
 
-  /**
-   * Make sure to clean the AAAA record before each test.
-   */
+  /** Make sure to clean the AAAA record before each test. */
   @BeforeEach
   void clean() throws IOException {
     client.deleteAAAARec(fqdn);
@@ -71,7 +69,7 @@ class AAAATest {
     // Now new Fqdn should resolve the IP.
     assertEquals(Collections.singletonList(ipv6), Dig.lookup(newFqdn, Type.AAAA));
 
-    // Delete A Record
+    // Delete AAAA Record
     List<String> delAAAARec = client.deleteAAAARec(fqdn);
     assertEquals(0, delAAAARec.size());
     delAAAARec = client.deleteAAAARec(newFqdn);

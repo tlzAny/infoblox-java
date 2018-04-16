@@ -15,6 +15,7 @@ public abstract class HostReq {
 
   public abstract String name();
 
+  /** <b>Do not mutate</b> the returned object. */
   public abstract List<HostIPv4Req> ipv4addrs();
 
   public static HostReq create(String name, List<HostIPv4Req> ipv4addrs) {

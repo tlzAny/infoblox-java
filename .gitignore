@@ -1,20 +1,23 @@
+# Mac OSX
+.DS_Store
+
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# Maven
 target/
 !.mvn/wrapper/maven-wrapper.jar
-.fbExcludeFilterFile
+/javadocs
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
+# Java
+hs_err_pid*
 
 ### Keystores
 src/main/resources/keystores/*.p12

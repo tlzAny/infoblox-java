@@ -1,12 +1,14 @@
 package com.oneops.infoblox.util;
 
-import static com.oneops.infoblox.IBAEnvConfig.domain;
-import static com.oneops.infoblox.IBAEnvConfig.nameServer;
 import static org.xbill.DNS.Type.A;
 import static org.xbill.DNS.Type.AAAA;
 import static org.xbill.DNS.Type.CNAME;
+import static org.xbill.DNS.Type.MX;
+import static org.xbill.DNS.Type.NS;
+import static org.xbill.DNS.Type.PTR;
+import static org.xbill.DNS.Type.SRV;
+import static org.xbill.DNS.Type.TXT;
 
-import com.oneops.infoblox.IBAEnvConfig;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,8 +18,12 @@ import org.xbill.DNS.AAAARecord;
 import org.xbill.DNS.ARecord;
 import org.xbill.DNS.CNAMERecord;
 import org.xbill.DNS.Lookup;
+import org.xbill.DNS.MXRecord;
+import org.xbill.DNS.NSRecord;
+import org.xbill.DNS.PTRRecord;
 import org.xbill.DNS.Record;
-import org.xbill.DNS.SimpleResolver;
+import org.xbill.DNS.SRVRecord;
+import org.xbill.DNS.TXTRecord;
 import org.xbill.DNS.Type;
 
 /**
@@ -30,8 +36,7 @@ import org.xbill.DNS.Type;
 public class Dig {
 
   /**
-   * Queries the DNS server ({@link IBAEnvConfig#nameServer()}) for the given resource name and
-   * record type.
+   * Queries the DNS server (using system resolver) for the given resource name and record type.
    *
    * <p>Warning: Writing test cases depending too much on DNS resolution might break the test cases,
    * as it usually cached and take time to propagate the DNS entries.
@@ -43,8 +48,8 @@ public class Dig {
    */
   public static List<String> lookup(String fqdn, int queryType) throws IOException {
     Lookup dig = new Lookup(fqdn, queryType);
-    dig.setSearchPath(new String[]{domain()});
-    dig.setResolver(new SimpleResolver(nameServer()));
+    // dig.setSearchPath(new String[] {domain()});
+    // dig.setResolver(new SimpleResolver(nameServer()));
 
     Record[] records = dig.run();
     List<String> answer = Collections.emptyList();
@@ -73,6 +78,48 @@ public class Dig {
                   .map(CNAMERecord.class::cast)
                   .map(c -> c.getTarget().toString())
                   .collect(Collectors.toList());
+          break;
+
+        case MX:
+          answer =
+              Arrays.stream(records)
+                  .map(MXRecord.class::cast)
+                  .map(m -> m.getTarget().toString())
+                  .collect(Collectors.toList());
+          break;
+
+        case NS:
+          answer =
+              Arrays.stream(records)
+                  .map(NSRecord.class::cast)
+                  .map(n -> n.getTarget().toString())
+                  .collect(Collectors.toList());
+          break;
+
+        case SRV:
+          answer =
+              Arrays.stream(records)
+                  .map(SRVRecord.class::cast)
+                  .map(s -> s.getTarget().toString())
+                  .collect(Collectors.toList());
+          break;
+
+        case TXT:
+          //noinspection unchecked
+          answer =
+              Arrays.stream(records)
+                  .map(TXTRecord.class::cast)
+                  .flatMap(t -> ((List<String>) t.getStrings()).stream())
+                  .collect(Collectors.toList());
+
+          break;
+        case PTR:
+          answer =
+              Arrays.stream(records)
+                  .map(PTRRecord.class::cast)
+                  .map(p -> p.getTarget().toString())
+                  .collect(Collectors.toList());
+
           break;
 
         default:
