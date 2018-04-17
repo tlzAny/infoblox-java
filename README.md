@@ -72,7 +72,7 @@ List<CNAME> modCName = client.modifyCNameRec(alias, newAlias);
 List<String> delCName = client.deleteCNameRec(alias);
 ```
 
-**MX, PTR, SRV, TXT** etc. Refer [JavaDocs][javadoc-url] for all the APIs
+Refer [JavaDocs][javadoc-url] for all record types (**MX, PTR, SRV, TXT** etc) APIs
 
 ## Testing
 
