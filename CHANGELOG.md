@@ -6,8 +6,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
+
+
+## [1.1.0] - 2018-04-17
+### Added
+- Disabled SNI TLS extension.
 - `MX` record APIs.
 - New `A` record api to query based on IP address.
+
 
 ### Changed
 - Dependencies updated to latest versions.
@@ -16,7 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 ### Fixed
-
+- Dig utility to resolve dns records.
 
 ## [1.0.1] - 2018-01-19
 ### Changed
@@ -37,7 +43,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Infoblox java api initial release.
 
 
-[Unreleased]: https://github.com/oneops/infoblox-java/compare/release-1.0.1...HEAD
+[Unreleased]: https://github.com/oneops/infoblox-java/compare/release-1.1.0...HEAD
+[1.1.0]: https://github.com/oneops/infoblox-java/compare/release-1.0.1...release-1.1.0
 [1.0.1]: https://github.com/oneops/infoblox-java/compare/release-1.0.0...release-1.0.1
 [1.0.0]: https://github.com/oneops/infoblox-java/compare/release-0.0.1...release-1.0.0
 [0.0.1]: https://github.com/oneops/infoblox-java/compare/release-0.0.1...release-0.0.1

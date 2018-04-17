@@ -33,8 +33,46 @@ InfobloxClient client = InfobloxClient.builder()
   - For loading the Truststore from classpath use, `classpath:/<your/truststore/path>.p12`
   - To enable http debugging for troubleshooting, set [.debug(true)][5] to the [InfobloxClient.builder()][6]
 
-## Examples
+#### *A* Record
 
+```java
+String fqdn = "test.xyz.com";
+String ip = "10.11.12.13";
+
+// CRUD operations
+ARec aRec = client.createARec(fqdn, ip);
+List<ARec> rec = client.getARec(fqdn);
+List<ARec> aRecs = client.getARec(fqdn, ip);
+List<ARec> modifedARec = client.modifyARec(fqdn, newFqdn);
+List<String> delARec = client.deleteARec(fqdn);
+```
+#### *AAAA* Record
+
+```java
+String fqdn = "test.xyz.com";
+String ipv6 = "fe80:0:0:0:f0ea:f6ff:fd97:5d51";
+
+// CRUD operations
+AAAA newAAAARec = client.createAAAARec(fqdn, ipv6);
+List<AAAA> aaaaRec = client.getAAAARec(fqdn);
+List<AAAA> modAAAARec = client.modifyAAAARec(fqdn, newFqdn);
+List<String> delAAAARec = client.deleteAAAARec(fqdn);
+```
+
+#### *CNAME* Record
+
+```java
+String canonicalName = "test.xyz.com";
+String alias = "app.xyz.com";
+
+// CRUD operations
+CNAME cname = client.createCNameRec(alias, canonicalName);
+List<CNAME> rec = client.getCNameRec(alias);
+List<CNAME> modCName = client.modifyCNameRec(alias, newAlias);
+List<String> delCName = client.deleteCNameRec(alias);
+```
+
+**MX, PTR, SRV, TXT** etc. Refer [JavaDocs][javadoc-url] for all the APIs
 
 ## Testing
 
