@@ -86,7 +86,7 @@ public class CurlLoggingInterceptor implements Interceptor {
     }
 
     curlCmd.append((compressed) ? " --compressed " : " ").append(request.url());
-    logger.log(String.format("[cURL] -> %s", curlCmd.toString()));
+    logger.log(String.format("[cURL] -> %s%n", curlCmd.toString()));
     return chain.proceed(request);
   }
 }

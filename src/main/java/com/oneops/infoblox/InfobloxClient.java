@@ -183,6 +183,7 @@ public abstract class InfobloxClient {
 
     if (debug()) {
       CurlLoggingInterceptor logIntcp = new CurlLoggingInterceptor(log::info);
+      logIntcp.curlOptions("-k");
       okBuilder.addNetworkInterceptor(logIntcp);
     }
     OkHttpClient okHttp = okBuilder.build();
