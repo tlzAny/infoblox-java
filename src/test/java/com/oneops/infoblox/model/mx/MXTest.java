@@ -28,7 +28,6 @@ class MXTest {
 
   private static InfobloxClient client;
 
-  private final String mailServer = "oneops-test-mail." + domain();
   private final String fqdn = "oneops-test-mx1." + domain();
   private final String newFqdn = "oneops-test-mx1-mod." + domain();
 
@@ -65,7 +64,15 @@ class MXTest {
     assertEquals(expected, Dig.lookup(fqdn, Type.MX));
 
     // Modify MX Record
+    List<MX> modifiedMXRec = client.modifyMXRec(fqdn, newFqdn);
+    assertEquals(1, modifiedMXRec.size());
+    // Now new Fqdn should resolve the same mail server.
+    assertEquals(expected, Dig.lookup(newFqdn, Type.MX));
 
     // Delete MX Record
+    List<String> deleteMXRec = client.deleteMXRec(fqdn);
+    assertEquals(0, deleteMXRec.size());
+    deleteMXRec = client.deleteCNameRec(newFqdn);
+    assertEquals(1, deleteMXRec.size());
   }
 }
