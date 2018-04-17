@@ -93,7 +93,7 @@ export iba_domain=<Infoblox Zone>
 
 ## ToDo
 
-   - Add support for `SRV`, `TXT`, `PTR` records etc.
+   - Add support for `SRV`, `TXT`, `PTR`, `DNAME` records etc.
    - Add more APIs to query/update record specific attributes.
    - Add an option to change DNS record TTL.
       

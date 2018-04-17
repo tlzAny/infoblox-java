@@ -50,6 +50,12 @@ public enum DNSRecord {
   /** Stores PKIX, SPKI, PGP, etc. */
   CERT(37, "Certificate record"),
 
+  /**
+   * Alias for a name and all its subnames, unlike CNAME, which is an alias for only the exact name.
+   * Like a CNAME record, the DNS lookup will continue by retrying the lookup with the new name.
+   */
+  DNAME(39, "DNS Name Redirection record"),
+
   /** Can be used for publishing mappings from host-names to URIs. */
   URI(256, "Uniform Resource Identifier");
 
