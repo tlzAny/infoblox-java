@@ -33,7 +33,7 @@ InfobloxClient client = InfobloxClient.builder()
   - For loading the Truststore from classpath use, `classpath:/<your/truststore/path>.p12`
   - To enable http debugging for troubleshooting, set [.debug(true)][5] to the [InfobloxClient.builder()][6]
 
-#### *A* Record
+#### **A** Record
 
 ```java
 String fqdn = "test.xyz.com";
@@ -46,7 +46,7 @@ List<ARec> aRecs = client.getARec(fqdn, ip);
 List<ARec> modifedARec = client.modifyARec(fqdn, newFqdn);
 List<String> delARec = client.deleteARec(fqdn);
 ```
-#### *AAAA* Record
+#### **AAAA** Record
 
 ```java
 String fqdn = "test.xyz.com";
@@ -59,7 +59,7 @@ List<AAAA> modAAAARec = client.modifyAAAARec(fqdn, newFqdn);
 List<String> delAAAARec = client.deleteAAAARec(fqdn);
 ```
 
-#### *CNAME* Record
+#### **CNAME** Record
 
 ```java
 String canonicalName = "test.xyz.com";
