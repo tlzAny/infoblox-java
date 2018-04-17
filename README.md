@@ -12,7 +12,7 @@ Download [the latest JAR][1] or grab via Maven:
 <dependency>
    <groupId>com.oneops</groupId>
    <artifactId>infoblox-java</artifactId>
-   <version>1.0.1</version>
+   <version>1.1.0</version>
 </dependency>
 ```
 
@@ -33,6 +33,9 @@ InfobloxClient client = InfobloxClient.builder()
   - For loading the Truststore from classpath use, `classpath:/<your/truststore/path>.p12`
   - To enable http debugging for troubleshooting, set [.debug(true)][5] to the [InfobloxClient.builder()][6]
 
+## Examples
+
+
 ## Testing
 
 Set the following env variables and run `./mvnw clean test` to execute the unit tests.
@@ -49,13 +52,12 @@ export iba_domain=<Infoblox Zone>
    - [Retrofit](https://github.com/square/retrofit/)
    - [OkHttp](https://github.com/square/okhttp)
    - [Moshi](https://github.com/square/Moshi/)
-   - [Failsafe](https://github.com/jhalterman/failsafe)
-   - [Ok2Curl](https://github.com/mrmike/Ok2Curl)
 
 ## ToDo
 
    - Add support for `SRV`, `TXT`, `PTR` records etc.
    - Add more APIs to query/update record specific attributes.
+   - Add an option to change DNS record TTL.
       
 License
 -------
