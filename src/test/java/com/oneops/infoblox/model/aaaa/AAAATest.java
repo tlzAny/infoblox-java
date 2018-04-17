@@ -66,7 +66,7 @@ class AAAATest {
     // Modify AAAA Record
     List<AAAA> modAAAARec = client.modifyAAAARec(fqdn, newFqdn);
     assertEquals(1, modAAAARec.size());
-    // Now new Fqdn should resolve the IP.
+    // Now new Fqdn should resolve the same IPv6.
     assertEquals(Collections.singletonList(ipv6), Dig.lookup(newFqdn, Type.AAAA));
 
     // Delete AAAA Record

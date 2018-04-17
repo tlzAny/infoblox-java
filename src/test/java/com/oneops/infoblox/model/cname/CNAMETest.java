@@ -66,7 +66,7 @@ class CNAMETest {
     // Modify CNAME Record
     List<CNAME> modCName = client.modifyCNameRec(alias, newAlias);
     assertEquals(1, modCName.size());
-    // Now new Fqdn should resolve the IP.
+    // Now new Fqdn should resolve the same canonicalName.
     assertEquals(expected, Dig.lookup(newAlias, Type.CNAME));
 
     // Ideally the next assert should have succeeded, but usually DNS entries are cached

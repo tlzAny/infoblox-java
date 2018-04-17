@@ -60,12 +60,17 @@ class ARecordTest {
     String ip = "10.11.12.13";
     ARec aRec = client.createARec(fqdn, ip);
     assertEquals(ip, aRec.ipv4Addr());
+
+    // Check the A record for given fqdn and IP.
+    List<ARec> aRecs = client.getARec(fqdn, ip);
+    assertEquals(1, aRecs.size());
+
     assertEquals(Collections.singletonList(ip), Dig.lookup(fqdn, Type.A));
 
     // Modify A Record
     List<ARec> modifedARec = client.modifyARec(fqdn, newFqdn);
     assertEquals(1, modifedARec.size());
-    // Now new Fqdn should resolve the IP.
+    // Now new Fqdn should resolve the same IP.
     assertEquals(Collections.singletonList(ip), Dig.lookup(newFqdn, Type.A));
 
     // Delete A Record
