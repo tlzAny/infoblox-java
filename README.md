@@ -12,7 +12,7 @@ Download [the latest JAR][1] or grab via Maven:
 <dependency>
    <groupId>com.oneops</groupId>
    <artifactId>infoblox-java</artifactId>
-   <version>1.1.0</version>
+   <version>1.2.0</version>
 </dependency>
 ```
 
@@ -94,8 +94,6 @@ export iba_domain=<Infoblox Zone>
 ## ToDo
 
    - Add support for `SRV`, `TXT`, `PTR`, `DNAME` records etc.
-   - Add more APIs to query/update record specific attributes.
-   - Add an option to change DNS record TTL.
       
 License
 -------
