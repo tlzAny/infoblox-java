@@ -2,6 +2,8 @@ package com.oneops.infoblox.model.zone;
 
 import static com.oneops.infoblox.IBAEnvConfig.domain;
 import static com.oneops.infoblox.IBAEnvConfig.isValid;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -18,8 +20,8 @@ import org.junit.jupiter.api.Test;
  *
  * @author Suresh
  */
-@DisplayName("Authoritative Zone tests")
-class ZoneAuthTest {
+@DisplayName("Zone tests")
+class ZoneTest {
 
   private static InfobloxClient client;
 
@@ -33,6 +35,7 @@ class ZoneAuthTest {
             .endPoint(IBAEnvConfig.host())
             .userName(IBAEnvConfig.user())
             .password(IBAEnvConfig.password())
+            .ttl(1)
             .tlsVerify(false)
             .debug(true)
             .build();
@@ -42,5 +45,23 @@ class ZoneAuthTest {
   void authZones() throws IOException {
     List<ZoneAuth> authZones = client.getAuthZones(zoneName);
     assertTrue(authZones.size() > 0);
+    assertEquals(zoneName, authZones.get(0).fqdn());
+
+    List<ZoneAuth> az = client.getAuthZones();
+    assertTrue(az.size() > 0);
+    System.out.println("List of all auth zone are,");
+    az.forEach(System.out::println);
+  }
+
+  @Test
+  void delegatedZones() throws IOException {
+    List<ZoneDelegate> delegates = client.getDelegatedZones();
+    assertTrue(delegates.size() > 0);
+
+    String glbDomain = String.format("glb.%s", zoneName);
+    List<ZoneDelegate> dz = client.getDelegatedZones(glbDomain);
+    assertNotNull(dz);
+    System.out.println("Delegated zone for " + glbDomain);
+    dz.forEach(System.out::println);
   }
 }

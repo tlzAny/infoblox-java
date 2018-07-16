@@ -2,21 +2,18 @@ package com.oneops.infoblox.model.mx;
 
 import static com.oneops.infoblox.IBAEnvConfig.domain;
 import static com.oneops.infoblox.IBAEnvConfig.isValid;
-import static java.util.Collections.singletonList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.oneops.infoblox.IBAEnvConfig;
 import com.oneops.infoblox.InfobloxClient;
-import com.oneops.infoblox.util.Dig;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.xbill.DNS.Type;
 
 /**
  * MX record tests.
@@ -39,12 +36,13 @@ class MXTest {
             .endPoint(IBAEnvConfig.host())
             .userName(IBAEnvConfig.user())
             .password(IBAEnvConfig.password())
+            .ttl(1)
             .tlsVerify(false)
             .debug(true)
             .build();
   }
 
-  /** Make sure to clean the A record before each test. */
+  /** Make sure to clean the MX record before each test. */
   @BeforeEach
   void clean() throws IOException {
     client.deleteMXRec(fqdn);
@@ -60,19 +58,22 @@ class MXTest {
     String mailServer = "mail.oneops-test." + domain();
     MX mx = client.createMXRec(fqdn, mailServer, 1);
     assertEquals(mailServer, mx.mailExchanger());
-    List<String> expected = singletonList(mailServer + ".");
-    assertEquals(expected, Dig.lookup(fqdn, Type.MX));
+
+    // Check the A record for given fqdn and IP.
+    List<MX> mxRecs = client.getMXRec(fqdn, mailServer);
+    assertEquals(1, mxRecs.size());
+    assertEquals(mailServer, mxRecs.get(0).mailExchanger());
 
     // Modify MX Record
-    List<MX> modifiedMXRec = client.modifyMXRec(fqdn, newFqdn);
-    assertEquals(1, modifiedMXRec.size());
-    // Now new Fqdn should resolve the same mail server.
-    assertEquals(expected, Dig.lookup(newFqdn, Type.MX));
+    List<MX> mxList = client.modifyMXRec(fqdn, newFqdn);
+    assertEquals(1, mxList.size());
+    assertEquals(mailServer, mxList.get(0).mailExchanger());
 
     // Delete MX Record
     List<String> deleteMXRec = client.deleteMXRec(fqdn);
     assertEquals(0, deleteMXRec.size());
-    deleteMXRec = client.deleteCNameRec(newFqdn);
-    assertEquals(1, deleteMXRec.size());
+
+    List<String> deleteMXRec1 = client.deleteMXRec(newFqdn);
+    assertEquals(1, deleteMXRec1.size());
   }
 }

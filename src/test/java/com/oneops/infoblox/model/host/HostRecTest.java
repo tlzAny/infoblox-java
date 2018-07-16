@@ -42,6 +42,7 @@ class HostRecTest {
             .endPoint(IBAEnvConfig.host())
             .userName(IBAEnvConfig.user())
             .password(IBAEnvConfig.password())
+            .ttl(1)
             .tlsVerify(false)
             .debug(true)
             .build();
@@ -58,8 +59,8 @@ class HostRecTest {
     List<Host> hostRec = client.getHostRec(fqdn);
     assertTrue(hostRec.isEmpty());
 
-    hostRec = client.getHostRec(fqdn, SearchModifier.REGEX);
-    assertTrue(hostRec.isEmpty());
+    List<Host> rec = client.getHostRec(fqdn, SearchModifier.REGEX);
+    assertTrue(rec.isEmpty());
 
     List<String> ipv4Addrs = Collections.singletonList("10.11.12.13");
     Host newHostRec = client.createHostRec(fqdn, ipv4Addrs);
@@ -68,7 +69,7 @@ class HostRecTest {
     assertEquals(ipv4Addrs, res);
 
     client.deleteHostRec(fqdn);
-    hostRec = client.getHostRec(fqdn);
-    assertTrue(hostRec.isEmpty());
+    List<Host> hostRec1 = client.getHostRec(fqdn);
+    assertTrue(hostRec1.isEmpty());
   }
 }

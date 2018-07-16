@@ -2,21 +2,18 @@ package com.oneops.infoblox.model.cname;
 
 import static com.oneops.infoblox.IBAEnvConfig.domain;
 import static com.oneops.infoblox.IBAEnvConfig.isValid;
-import static java.util.Collections.singletonList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.oneops.infoblox.IBAEnvConfig;
 import com.oneops.infoblox.InfobloxClient;
-import com.oneops.infoblox.util.Dig;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.xbill.DNS.Type;
 
 /**
  * Canonical record tests.
@@ -36,6 +33,7 @@ class CNAMETest {
             .endPoint(IBAEnvConfig.host())
             .userName(IBAEnvConfig.user())
             .password(IBAEnvConfig.password())
+            .ttl(1)
             .tlsVerify(false)
             .debug(true)
             .build();
@@ -58,25 +56,21 @@ class CNAMETest {
 
     // Creates CNAME Record
     CNAME cname = client.createCNameRec(alias, canonicalName);
-    assertEquals(cname.canonical(), canonicalName);
-    // DNS lookup returns fqdn with dot at the end (as per the RFC).
-    List<String> expected = singletonList(canonicalName + ".");
-    assertEquals(expected, Dig.lookup(alias, Type.CNAME));
+    assertEquals(canonicalName, cname.canonical());
+
+    List<CNAME> cNameRec = client.getCNameRec(alias);
+    assertEquals(1, cNameRec.size());
+    assertEquals(canonicalName, cNameRec.get(0).canonical());
 
     // Modify CNAME Record
     List<CNAME> modCName = client.modifyCNameRec(alias, newAlias);
     assertEquals(1, modCName.size());
-    // Now new Fqdn should resolve the same canonicalName.
-    assertEquals(expected, Dig.lookup(newAlias, Type.CNAME));
-
-    // Ideally the next assert should have succeeded, but usually DNS entries are cached
-    // and take time to propagate the updates.
-    // assertNotEquals(expected, Dig.lookup(alias, Type.CNAME));
 
     // Delete CNAME Record
     List<String> delCName = client.deleteCNameRec(alias);
     assertEquals(0, delCName.size());
-    delCName = client.deleteCNameRec(newAlias);
-    assertEquals(1, delCName.size());
+
+    List<String> delNewCName = client.deleteCNameRec(newAlias);
+    assertEquals(1, delNewCName.size());
   }
 }

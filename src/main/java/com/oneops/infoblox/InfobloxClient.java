@@ -10,25 +10,28 @@ import com.google.auto.value.AutoValue;
 import com.oneops.infoblox.curl.CurlLoggingInterceptor;
 import com.oneops.infoblox.model.Error;
 import com.oneops.infoblox.model.JsonAdapterFactory;
+import com.oneops.infoblox.model.Record;
 import com.oneops.infoblox.model.Redacted;
 import com.oneops.infoblox.model.SearchModifier;
 import com.oneops.infoblox.model.a.ARec;
 import com.oneops.infoblox.model.aaaa.AAAA;
 import com.oneops.infoblox.model.cname.CNAME;
 import com.oneops.infoblox.model.host.Host;
-import com.oneops.infoblox.model.host.HostIPv4Req;
-import com.oneops.infoblox.model.host.HostReq;
 import com.oneops.infoblox.model.mx.MX;
-import com.oneops.infoblox.model.ref.Ref;
+import com.oneops.infoblox.model.ptr.PTR;
 import com.oneops.infoblox.model.ref.RefObject;
+import com.oneops.infoblox.model.ttl.TTLRec;
+import com.oneops.infoblox.model.zone.Delegate;
 import com.oneops.infoblox.model.zone.ZoneAuth;
-import com.oneops.infoblox.tls.DelegatingSSLSocketFactory;
+import com.oneops.infoblox.model.zone.ZoneDelegate;
+import com.oneops.infoblox.tls.SNIDisabledSocketFactory;
 import com.oneops.infoblox.tls.TrustAllCertsManager;
+import com.oneops.infoblox.util.IPAddrs;
 import com.squareup.moshi.Moshi;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
-import java.net.Socket;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
@@ -40,7 +43,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -75,7 +77,7 @@ public abstract class InfobloxClient {
 
   /**
    * IBA WAPI version. Browse to <a href="https://infoblox-server/wapidoc/">WapiDoc</a> to see the
-   * current wapi version of Infoblox appliance. Defaults to 2.5
+   * current wapi version of Infoblox appliance. Defaults to 2.7
    */
   public abstract String wapiVersion();
 
@@ -89,6 +91,21 @@ public abstract class InfobloxClient {
 
   /** IBA default view. Defaults to 'default`. */
   public abstract String dnsView();
+
+  /**
+   * A 32-bit integer (range from 0 to 4294967295) that represents the duration in seconds that the
+   * record is cached. Zero indicates that the record should not be cached. The default value is
+   * undefined which indicates that the record inherits the TTL value of the zone. Specify a TTL
+   * value to override the TTL value at the zone level.
+   *
+   * <p>TTL — (Time-To-Live) How often a copy of the record stored in cache (local storage) must be
+   * updated (fetched from original storage) or discarded. Shorter TTLs mean records are fetched
+   * more often (access is slower, data is more current). Longer TTLs mean records are fetched from
+   * less often (access is faster, data is less current). The default value is 5 sec. Note: When you
+   * make changes to a resource record, It could take up to the length of the TTL time for the
+   * change to propagate.
+   */
+  public abstract int ttl();
 
   /** Checks if TLS certificate validation is enabled for communicating with Infoblox. */
   public abstract boolean tlsVerify();
@@ -134,17 +151,9 @@ public abstract class InfobloxClient {
     TrustManager[] trustManagers = getTrustManagers();
     SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
     sslContext.init(null, trustManagers, new SecureRandom());
-    SSLSocketFactory delegate = sslContext.getSocketFactory();
 
-    // Disable SNIExtension by passing null host.
-    SSLSocketFactory socketFactory =
-        new DelegatingSSLSocketFactory(delegate) {
-          @Override
-          public SSLSocket createSocket(Socket socket, String host, int port, boolean autoClose)
-              throws IOException {
-            return super.createSocket(socket, null, port, autoClose);
-          }
-        };
+    // Disable SNIExtension.
+    SSLSocketFactory socketFactory = new SNIDisabledSocketFactory(sslContext.getSocketFactory());
 
     String basicCreds = Credentials.basic(userName(), password());
     OkHttpClient.Builder okBuilder =
@@ -163,8 +172,8 @@ public abstract class InfobloxClient {
                   HttpUrl url =
                       origUrl
                           .newBuilder()
-                          // .addQueryParameter("_max_results","1")
                           .addQueryParameter("_return_as_object", "1")
+                          // .addQueryParameter("_max_results","1")
                           .build();
                   Request req =
                       chain
@@ -226,7 +235,7 @@ public abstract class InfobloxClient {
    *
    * @throws IllegalStateException if the file/classpath resource doesn't exist.
    */
-  @SuppressWarnings("ConstantConditions")
+  @SuppressWarnings("OptionalGetWithoutIsPresent")
   private KeyStore loadTrustStore() {
 
     String tsPath = trustStore().get().toLowerCase();
@@ -292,8 +301,20 @@ public abstract class InfobloxClient {
     return buf.append(endPoint()).append("/wapi/v").append(wapiVersion()).append("/").toString();
   }
 
-  // =======(Auth Zone Record)=======
+  /**
+   * Create a new request map with ttl set. TTL is associated with the flag <b>use_ttl</b>. In an
+   * object, the value of this field will only take effect when its use flag is true.
+   *
+   * @return request map
+   */
+  private Map<String, Object> newTTLReq() {
+    Map<String, Object> req = new HashMap<>();
+    req.put("ttl", ttl());
+    req.put("use_ttl", true);
+    return req;
+  }
 
+  // --------<Auth Zone Record>--------
   /**
    * Fetch all Authoritative Zones.
    *
@@ -331,8 +352,101 @@ public abstract class InfobloxClient {
     return getAuthZones(domainName, SearchModifier.NONE);
   }
 
-  // =======(Host Record)=======
+  // --------<Delegated Zone Record>--------
+  /**
+   * Fetch all delegated zones.
+   *
+   * @return list of {@link ZoneDelegate}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<ZoneDelegate> getDelegatedZones() throws IOException {
+    return exec(infoblox.queryDelegatedZones()).result();
+  }
 
+  /**
+   * Fetch all delegated zones for the given domain name and search option.
+   *
+   * @param domainName fqdn.
+   * @param modifier {@link SearchModifier}
+   * @return list of {@link ZoneDelegate}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<ZoneDelegate> getDelegatedZones(String domainName, SearchModifier modifier)
+      throws IOException {
+    requireNonNull(domainName, "Domain name is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put("fqdn" + modifier.getValue(), domainName);
+    return exec(infoblox.queryDelegatedZone(options)).result();
+  }
+
+  /**
+   * Search all delegated zones for the given domain name.
+   *
+   * @param domainName fqdn.
+   * @return list of {@link ZoneDelegate}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<ZoneDelegate> getDelegatedZones(String domainName) throws IOException {
+    return getDelegatedZones(domainName, SearchModifier.NONE);
+  }
+
+  /**
+   * Creates delegated zone for a domain.
+   *
+   * @param domainName fqdn
+   * @param delegateTo list of {@link Delegate} for this fqdn
+   * @param ttl delegated ttl
+   * @return {@link ZoneDelegate} ZoneDelegate record.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public ZoneDelegate createDelegatedZone(String domainName, List<Delegate> delegateTo, int ttl)
+      throws IOException {
+    requireNonNull(domainName, "Domain name is null");
+    requireNonNull(delegateTo, "DelegateTo is null");
+    Map<String, Object> req = new HashMap<>(3);
+    req.put("fqdn", domainName);
+    req.put("delegate_to", delegateTo);
+    req.put("delegated_ttl", ttl);
+    return exec(infoblox.createDelegatedZone(req)).result();
+  }
+
+  /**
+   * Modify delegated zone for the given domain
+   *
+   * @param domainName fqdn.
+   * @param params delegated zone param to change.
+   * @return changed delegated zone records.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<ZoneDelegate> modifyDelegatedZone(String domainName, Map<String, Object> params)
+      throws IOException {
+    return getDelegatedZones(domainName)
+        .stream()
+        .map(
+            rec -> {
+              try {
+                log.warn("Modifying delegated zone config for " + rec + " to" + params);
+                return exec(infoblox.modifyDelegatedZone(rec.ref().value(), params)).result();
+              } catch (IOException ioe) {
+                throw new IllegalStateException(
+                    "Error modifying delegated zone record: " + rec, ioe);
+              }
+            })
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Delete delegated zones for the given domain name.
+   *
+   * @param domainName domain name.
+   * @return list of delegated zone obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deleteDelegatedZone(String domainName) throws IOException {
+    return deleteRecords(getDelegatedZones(domainName));
+  }
+
+  // --------<Host Record>--------
   /**
    * Get host information for the given domain name and search option.
    *
@@ -361,16 +475,30 @@ public abstract class InfobloxClient {
   /**
    * Creates IBA host record.
    *
-   * @param domainName hostname in FQDN
+   * @param domainName hostname in fqdn.
    * @param ipv4Addrs IPv4 address(s)
    * @return {@link Host} containing IPv4 addresses for the hostname.
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public Host createHostRec(String domainName, List<String> ipv4Addrs) throws IOException {
-    List<HostIPv4Req> reqList =
-        ipv4Addrs.stream().map(HostIPv4Req::create).collect(Collectors.toList());
-    HostReq hostReq = HostReq.create(domainName, reqList);
-    return exec(infoblox.createHostRec(hostReq)).result();
+    requireNonNull(domainName, "Domain name is null");
+    requireNonNull(ipv4Addrs, "IPv4Address list is null");
+    // Transform the address.
+    List<Map<String, String>> addrs =
+        ipv4Addrs
+            .stream()
+            .map(
+                s -> {
+                  Map<String, String> map = new HashMap<>(1);
+                  map.put("ipv4addr", s);
+                  return map;
+                })
+            .collect(Collectors.toList());
+
+    Map<String, Object> req = newTTLReq();
+    req.put("name", domainName);
+    req.put("ipv4addrs", addrs);
+    return exec(infoblox.createHostRec(req)).result();
   }
 
   /**
@@ -381,16 +509,10 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public List<String> deleteHostRec(String domainName) throws IOException {
-    return getHostRec(domainName)
-        .stream()
-        .map(Host::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
-        .map(this::deleteRef)
-        .collect(Collectors.toList());
+    return deleteRecords(getHostRec(domainName));
   }
 
-  // =======(A Record)=======
-
+  // --------<A Record>--------
   /**
    * Get address records (A Record) for the given domain name and search option.
    *
@@ -419,7 +541,7 @@ public abstract class InfobloxClient {
   /**
    * Get address record (A Record) for the given domain name and IPv4 address.
    *
-   * @param domainName FQDN
+   * @param domainName fqdn
    * @param ipv4Address IPv4 address
    * @throws IOException if a problem occurred talking to the infoblox.
    */
@@ -443,7 +565,7 @@ public abstract class InfobloxClient {
   public ARec createARec(String domainName, String ipv4Address) throws IOException {
     requireNonNull(domainName, "Domain name is null");
     requireIPv4(ipv4Address);
-    Map<String, String> req = new HashMap<>(2);
+    Map<String, Object> req = newTTLReq();
     req.put("name", domainName);
     req.put("ipv4addr", ipv4Address);
     return exec(infoblox.createARec(req)).result();
@@ -457,12 +579,7 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public List<String> deleteARec(String domainName) throws IOException {
-    return getARec(domainName)
-        .stream()
-        .map(ARec::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
-        .map(this::deleteRef)
-        .collect(Collectors.toList());
+    return deleteRecords(getARec(domainName));
   }
 
   /**
@@ -474,12 +591,7 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public List<String> deleteARec(String domainName, String ipv4Address) throws IOException {
-    return getARec(domainName, ipv4Address)
-        .stream()
-        .map(ARec::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
-        .map(this::deleteRef)
-        .collect(Collectors.toList());
+    return deleteRecords(getARec(domainName, ipv4Address));
   }
 
   /**
@@ -492,22 +604,20 @@ public abstract class InfobloxClient {
   public List<ARec> modifyARec(String domainName, String newDomainName) throws IOException {
     return getARec(domainName)
         .stream()
-        .map(ARec::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
         .map(
-            ref -> {
+            rec -> {
               Map<String, String> req = new HashMap<>(1);
               req.put("name", newDomainName);
               try {
-                return exec(infoblox.modifyARec(ref.value(), req)).result();
+                return exec(infoblox.modifyARec(rec.ref().value(), req)).result();
               } catch (IOException ioe) {
-                throw new IllegalStateException("Error modifying A record ref: " + ref, ioe);
+                throw new IllegalStateException("Error modifying A record: " + rec, ioe);
               }
             })
         .collect(Collectors.toList());
   }
 
-  // =======(AAAA Record)=======
+  // --------<AAAA Record>--------
   /**
    * Get IPv6 address records (AAAA) for the given domain name and search option.
    *
@@ -534,9 +644,26 @@ public abstract class InfobloxClient {
   }
 
   /**
+   * Get AAAA records for the given domain name and ipv6Address.
+   *
+   * @param domainName fqdn
+   * @param ipv6Address IPv6 address
+   * @return list of matching {@link AAAA}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<AAAA> getAAAARec(String domainName, String ipv6Address) throws IOException {
+    requireNonNull(domainName, "Domain name is null");
+    requireIPv6(ipv6Address);
+    Map<String, String> options = new HashMap<>(1);
+    options.put("name", domainName);
+    options.put("ipv6addr", ipv6Address);
+    return exec(infoblox.queryAAAARec(options)).result();
+  }
+
+  /**
    * Creates an IPv6 address record (AAAA Record)
    *
-   * @param domainName FQDN
+   * @param domainName fqdn
    * @param ipv6Address IPv6 address
    * @return {@link AAAA} address record.
    * @throws IOException if a problem occurred talking to the infoblox.
@@ -544,7 +671,7 @@ public abstract class InfobloxClient {
   public AAAA createAAAARec(String domainName, String ipv6Address) throws IOException {
     requireNonNull(domainName, "Domain name is null");
     requireIPv6(ipv6Address);
-    Map<String, String> req = new HashMap<>(2);
+    Map<String, Object> req = newTTLReq();
     req.put("name", domainName);
     req.put("ipv6addr", ipv6Address);
     return exec(infoblox.createAAAARec(req)).result();
@@ -558,12 +685,19 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public List<String> deleteAAAARec(String domainName) throws IOException {
-    return getAAAARec(domainName)
-        .stream()
-        .map(AAAA::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
-        .map(this::deleteRef)
-        .collect(Collectors.toList());
+    return deleteRecords(getAAAARec(domainName));
+  }
+
+  /**
+   * Deletes AAAA record with given domain name and ipv6Address.
+   *
+   * @param domainName fqdn for the AAAA record.
+   * @param ipv6Address IPv6Address
+   * @return list of A record obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deleteAAAARec(String domainName, String ipv6Address) throws IOException {
+    return deleteRecords(getAAAARec(domainName, ipv6Address));
   }
 
   /**
@@ -576,22 +710,20 @@ public abstract class InfobloxClient {
   public List<AAAA> modifyAAAARec(String domainName, String newDomainName) throws IOException {
     return getAAAARec(domainName)
         .stream()
-        .map(AAAA::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
         .map(
-            ref -> {
+            rec -> {
               Map<String, String> req = new HashMap<>(1);
               req.put("name", newDomainName);
               try {
-                return exec(infoblox.modifyAAAARec(ref.value(), req)).result();
+                return exec(infoblox.modifyAAAARec(rec.ref().value(), req)).result();
               } catch (IOException ioe) {
-                throw new IllegalStateException("Error modifying AAAA record ref: " + ref, ioe);
+                throw new IllegalStateException("Error modifying AAAA record: " + rec, ioe);
               }
             })
         .collect(Collectors.toList());
   }
 
-  // =======(CNAME Record)=======
+  // --------<CNAME Record>--------
   /**
    * Get canonical records (CNAME) for the given alias name and search option.
    *
@@ -600,7 +732,7 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public List<CNAME> getCNameRec(String aliasName, SearchModifier modifier) throws IOException {
-    requireNonNull(aliasName, "Domain name is null");
+    requireNonNull(aliasName, "Alias name is null");
     Map<String, String> options = new HashMap<>(1);
     options.put("name" + modifier.getValue(), aliasName);
     return exec(infoblox.queryCNAMERec(options)).result();
@@ -618,6 +750,23 @@ public abstract class InfobloxClient {
   }
 
   /**
+   * Get canonical records (CNAME) for the given alias name and canonical name.
+   *
+   * @param aliasName fqdn
+   * @param canonicalName Canonical (true/actual) domain name.
+   * @return list of matching {@link CNAME}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<CNAME> getCNameRec(String aliasName, String canonicalName) throws IOException {
+    requireNonNull(aliasName, "Alias name is null");
+    requireNonNull(canonicalName, "Canonical name is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put("name", aliasName);
+    options.put("canonical", canonicalName);
+    return exec(infoblox.queryCNAMERec(options)).result();
+  }
+
+  /**
    * Creates a canonical record (CNAME Record). CNAME records must always point to another domain
    * name, never directly to an IP address.
    *
@@ -627,10 +776,24 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public CNAME createCNameRec(String aliasName, String canonicalName) throws IOException {
-    Map<String, String> req = new HashMap<>(2);
+    requireNonNull(aliasName, "Alias name is null");
+    requireNonNull(canonicalName, "Canonical name is null");
+    Map<String, Object> req = newTTLReq();
     req.put("name", aliasName);
     req.put("canonical", canonicalName);
     return exec(infoblox.createCNAMERec(req)).result();
+  }
+
+  /**
+   * Deletes canonical record with given alias name and it's associated canonicalName.
+   *
+   * @param aliasName alias name to be deleted.
+   * @param canonicalName Canonical (true/actual) domain name.
+   * @return list of CNAME record obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deleteCNameRec(String aliasName, String canonicalName) throws IOException {
+    return deleteRecords(getCNameRec(aliasName, canonicalName));
   }
 
   /**
@@ -641,12 +804,7 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public List<String> deleteCNameRec(String aliasName) throws IOException {
-    return getCNameRec(aliasName)
-        .stream()
-        .map(CNAME::ref)
-        .filter(ref -> ref.hasFqdn(aliasName))
-        .map(this::deleteRef)
-        .collect(Collectors.toList());
+    return deleteRecords(getCNameRec(aliasName));
   }
 
   /**
@@ -659,23 +817,20 @@ public abstract class InfobloxClient {
   public List<CNAME> modifyCNameRec(String aliasName, String newAliasName) throws IOException {
     return getCNameRec(aliasName)
         .stream()
-        .map(CNAME::ref)
-        .filter(ref -> ref.hasFqdn(aliasName))
         .map(
-            ref -> {
+            rec -> {
               Map<String, String> req = new HashMap<>(1);
               req.put("name", newAliasName);
               try {
-                return exec(infoblox.modifyCNAMERec(ref.value(), req)).result();
+                return exec(infoblox.modifyCNAMERec(rec.ref().value(), req)).result();
               } catch (IOException ioe) {
-                throw new IllegalStateException("Error modifying CNAME record ref: " + ref, ioe);
+                throw new IllegalStateException("Error modifying CNAME record: " + rec, ioe);
               }
             })
         .collect(Collectors.toList());
   }
 
-  // =======(MX Record)=======
-
+  // --------<MX Record>--------
   /**
    * Get mail exchange (MX) record for the given domain name and search option.
    *
@@ -702,6 +857,25 @@ public abstract class InfobloxClient {
   }
 
   /**
+   * Get mail exchange (MX) records for the given domain name and mail exchanger.
+   *
+   * @param domainName fqdn
+   * @param mailExchanger Mail server host responsible for accepting email messages on behalf of the
+   *     domain name. The host name must map directly to one or more address record (A, or AAAA) in
+   *     the DNS, and must not point to any CNAME records.
+   * @return list of matching {@link MX}
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<MX> getMXRec(String domainName, String mailExchanger) throws IOException {
+    requireNonNull(domainName, "Domain name is null");
+    requireNonNull(mailExchanger, "MailExchanger is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put("name", domainName);
+    options.put("mail_exchanger", mailExchanger);
+    return exec(infoblox.queryMXRec(options)).result();
+  }
+
+  /**
    * Creates mail exchange (MX) record for a domain name.
    *
    * @param domainName domain name.
@@ -715,7 +889,10 @@ public abstract class InfobloxClient {
    */
   public MX createMXRec(String domainName, String mailExchanger, int preference)
       throws IOException {
-    Map<String, Object> req = new HashMap<>(3);
+    requireNonNull(domainName, "Domain name is null");
+    requireNonNull(mailExchanger, "MailExchanger is null");
+
+    Map<String, Object> req = newTTLReq();
     req.put("name", domainName);
     req.put("mail_exchanger", mailExchanger);
     req.put("preference", preference);
@@ -730,12 +907,20 @@ public abstract class InfobloxClient {
    * @throws IOException if a problem occurred talking to the infoblox.
    */
   public List<String> deleteMXRec(String domainName) throws IOException {
-    return getMXRec(domainName)
-        .stream()
-        .map(MX::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
-        .map(this::deleteRef)
-        .collect(Collectors.toList());
+    return deleteRecords(getMXRec(domainName));
+  }
+
+  /**
+   * Deletes MX record for a domain name and mail exchanger.
+   *
+   * @param domainName fqdn.
+   * @param mailExchanger Mail server host responsible for accepting email messages on behalf of the
+   *     domain name.
+   * @return list of MX record obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deleteMXRec(String domainName, String mailExchanger) throws IOException {
+    return deleteRecords(getMXRec(domainName, mailExchanger));
   }
 
   /**
@@ -748,33 +933,135 @@ public abstract class InfobloxClient {
   public List<MX> modifyMXRec(String domainName, String newDomainName) throws IOException {
     return getMXRec(domainName)
         .stream()
-        .map(MX::ref)
-        .filter(ref -> ref.hasFqdn(domainName))
         .map(
-            ref -> {
+            rec -> {
               Map<String, String> req = new HashMap<>(1);
               req.put("name", newDomainName);
               try {
-                return exec(infoblox.modifyMXRec(ref.value(), req)).result();
+                return exec(infoblox.modifyMXRec(rec.ref().value(), req)).result();
               } catch (IOException ioe) {
-                throw new IllegalStateException("Error modifying MX record ref: " + ref, ioe);
+                throw new IllegalStateException("Error modifying MX record: " + rec, ioe);
               }
             })
         .collect(Collectors.toList());
   }
 
-  // =======(TXT Record)=======
+  // --------<PTR Record>--------
 
-  // =======(PTR Record)=======
+  /**
+   * Get pointer records (PTR) for the given IP Address.
+   *
+   * @param ipAddress IPv4/v6 address
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<PTR> getPTRRec(String ipAddress) throws IOException {
+    requireNonNull(ipAddress, "IPAddress is null");
+    String addrType = IPAddrs.isIPv4(ipAddress) ? "ipv4addr" : "ipv6addr";
+    Map<String, String> options = new HashMap<>(1);
+    options.put(addrType, ipAddress);
+    return exec(infoblox.queryPTRRec(options)).result();
+  }
 
-  // =======(SRV Record)=======
+  /**
+   * Get pointer (PTR) records for the given domain name.
+   *
+   * @param ptrdname pointer domain name.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<PTR> getPTRDRec(String ptrdname) throws IOException {
+    requireNonNull(ptrdname, "Pointer domain name is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put("ptrdname", ptrdname);
+    return exec(infoblox.queryPTRRec(options)).result();
+  }
 
-  /** Delete an infoblox reference object. */
-  private String deleteRef(Ref ref) {
+  /**
+   * Creates pointer (PTR) record for the IP address and domain name.
+   *
+   * @param ptrdname pointer domain name
+   * @param ipAddress IPv4/v6 address
+   * @return {@link PTR} record.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public PTR createPTRRec(String ptrdname, String ipAddress) throws IOException {
+    requireNonNull(ptrdname, "Pointer domain name is null");
+    requireNonNull(ipAddress, "IPAddress is null");
+    String addrType = IPAddrs.isIPv4(ipAddress) ? "ipv4addr" : "ipv6addr";
+
+    Map<String, Object> req = newTTLReq();
+    req.put("name", PTR.reverseMapName(InetAddress.getByName(ipAddress)));
+    req.put("ptrdname", ptrdname);
+    req.put(addrType, ipAddress);
+    return exec(infoblox.createPTRRec(req)).result();
+  }
+
+  /**
+   * Deletes PTR records for the given IP address.
+   *
+   * @param ipAddress IPv4/v6 address
+   * @return list of PTR record obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deletePTRRec(String ipAddress) throws IOException {
+    return deleteRecords(getPTRRec(ipAddress));
+  }
+
+  /**
+   * Deletes PTR records for the given domain name.
+   *
+   * @param ptrdname pointer domain name
+   * @return list of PTR record obj references deleted.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<String> deletePTRDRec(String ptrdname) throws IOException {
+    return deleteRecords(getPTRDRec(ptrdname));
+  }
+
+  // --------<TXT Record>--------
+
+  // --------<SRV Record>--------
+
+  // --------<NS Record>--------
+
+  // --------<TTL>--------
+  /**
+   * Modify TTL for a record.
+   *
+   * @param record {@link Record}
+   * @param newTTL new TTL value in seconds.
+   * @return TTL response.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public TTLRec modifyTTL(Record record, int newTTL) throws IOException {
+    requireNonNull(record, "Record is null.");
+    log.warn("Changing TTL of record " + record + " to '" + newTTL + "' seconds.");
+    Map<String, Object> req = newTTLReq();
+    req.put("ttl", newTTL);
+    return exec(infoblox.modifyTTL(record.ref().value(), req)).result();
+  }
+
+  /**
+   * A helper method to delete list of DNS records.
+   *
+   * @param recs list of DNS records to be deleted.
+   * @return list of deleted record ref ids.
+   */
+  private <T extends Record> List<String> deleteRecords(List<T> recs) {
+    return recs.stream().map(this::deleteRecord).collect(Collectors.toList());
+  }
+
+  /**
+   * A helper method to delete a DNS record.
+   *
+   * @param rec {@link Record}
+   * @return ref id of the deleted dns record.
+   */
+  private <T extends Record> String deleteRecord(T rec) {
     try {
-      return exec(infoblox.deleteRef(ref.value())).result();
+      log.warn("Deleting a dns record: " + rec);
+      return exec(infoblox.deleteRef(rec.ref().value())).result();
     } catch (IOException ioe) {
-      throw new IllegalStateException("Error deleting record ref: " + ref, ioe);
+      throw new IllegalStateException("Error deleting record: " + rec, ioe);
     }
   }
 
@@ -786,10 +1073,11 @@ public abstract class InfobloxClient {
    */
   public static Builder builder() {
     return new AutoValue_InfobloxClient.Builder()
+        .wapiVersion("2.7")
+        .dnsView("default")
+        .ttl(5)
         .tlsVerify(true)
         .timeout(10)
-        .wapiVersion("2.5")
-        .dnsView("default")
         .debug(false);
   }
 
@@ -805,6 +1093,8 @@ public abstract class InfobloxClient {
     public abstract Builder password(String password);
 
     public abstract Builder dnsView(String dnsView);
+
+    public abstract Builder ttl(int ttl);
 
     public abstract Builder tlsVerify(boolean tlsVerify);
 

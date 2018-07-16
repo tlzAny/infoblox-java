@@ -15,9 +15,8 @@ import com.squareup.moshi.Moshi;
 @AutoValue
 public abstract class Ipv4Addrs {
 
-  @RefObject
   @Json(name = "_ref")
-  public abstract Ref ref();
+  public abstract @RefObject Ref ref();
 
   public abstract String host();
 
@@ -27,9 +26,22 @@ public abstract class Ipv4Addrs {
   @Json(name = "configure_for_dhcp")
   public abstract boolean configureForDhcp();
 
-  public static Ipv4Addrs create(
-      String ref, String host, String ipv4Addr, boolean configureForDhcp) {
-    return new AutoValue_Ipv4Addrs(Ref.of(ref), host, ipv4Addr, configureForDhcp);
+  public static Builder builder() {
+    return new AutoValue_Ipv4Addrs.Builder();
+  }
+
+  @AutoValue.Builder
+  public abstract static class Builder {
+
+    public abstract Builder ref(Ref ref);
+
+    public abstract Builder host(String host);
+
+    public abstract Builder ipv4Addr(String ipv4Addr);
+
+    public abstract Builder configureForDhcp(boolean configureForDhcp);
+
+    public abstract Ipv4Addrs build();
   }
 
   public static JsonAdapter<Ipv4Addrs> jsonAdapter(Moshi moshi) {

@@ -3,21 +3,17 @@ package com.oneops.infoblox.model.aaaa;
 import static com.oneops.infoblox.IBAEnvConfig.domain;
 import static com.oneops.infoblox.IBAEnvConfig.isValid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.oneops.infoblox.IBAEnvConfig;
 import com.oneops.infoblox.InfobloxClient;
-import com.oneops.infoblox.util.Dig;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.xbill.DNS.Type;
 
 /**
  * AAAA record tests.
@@ -40,6 +36,7 @@ class AAAATest {
             .endPoint(IBAEnvConfig.host())
             .userName(IBAEnvConfig.user())
             .password(IBAEnvConfig.password())
+            .ttl(1)
             .tlsVerify(false)
             .debug(true)
             .build();
@@ -54,25 +51,28 @@ class AAAATest {
 
   @Test
   void create() throws IOException {
-    List<AAAA> aaaaRec = client.getAAAARec(fqdn);
-    assertTrue(aaaaRec.isEmpty());
+    List<AAAA> quadARec = client.getAAAARec(fqdn);
+    assertTrue(quadARec.isEmpty());
 
     // Creates AAAA Record
-    String ipv6 = "fe80:0:0:0:f0ea:f6ff:fd97:5d51";
+    String ipv6 = "fe80:f0aa:f0bb:f0eb:f0ea:f6ff:fd97:5d51";
     AAAA newAAAARec = client.createAAAARec(fqdn, ipv6);
-    assertNotNull(newAAAARec.ipv6Addr());
-    assertEquals(Collections.singletonList(ipv6), Dig.lookup(fqdn, Type.AAAA));
+    assertEquals(ipv6, newAAAARec.ipv6Addr());
+
+    // Check the AAAA record for given fqdn and IPv6.
+    List<AAAA> recs = client.getAAAARec(fqdn, ipv6);
+    assertEquals(1, recs.size());
+    assertEquals(ipv6, recs.get(0).ipv6Addr());
 
     // Modify AAAA Record
     List<AAAA> modAAAARec = client.modifyAAAARec(fqdn, newFqdn);
     assertEquals(1, modAAAARec.size());
-    // Now new Fqdn should resolve the same IPv6.
-    assertEquals(Collections.singletonList(ipv6), Dig.lookup(newFqdn, Type.AAAA));
 
-    // Delete AAAA Record
+    // Delete AAAA Records
     List<String> delAAAARec = client.deleteAAAARec(fqdn);
     assertEquals(0, delAAAARec.size());
-    delAAAARec = client.deleteAAAARec(newFqdn);
-    assertEquals(1, delAAAARec.size());
+
+    List<String> delQuadA = client.deleteAAAARec(newFqdn);
+    assertEquals(1, delQuadA.size());
   }
 }

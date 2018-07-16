@@ -36,4 +36,14 @@ public class IPAddrs {
       throw new IllegalArgumentException("Invalid IPv6 address: " + ipAddr);
     }
   }
+
+  /**
+   * Checks if the given address is IPv4
+   *
+   * @param ipAddr ip address
+   * @return return <code>true</code> if it's IPv4.
+   */
+  public static boolean isIPv4(String ipAddr) {
+    return IPv4.matcher(ipAddr).matches();
+  }
 }

@@ -45,16 +45,16 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <autovalue.version>1.6</autovalue.version>
+    <autovalue.version>1.6.2</autovalue.version>
     <autovalue.redact.version>1.0.1</autovalue.redact.version>
     <autovalue.moshi.version>0.4.5</autovalue.moshi.version>
-    <okhttp.version>3.10.0</okhttp.version>
-    <moshi.version>1.5.0</moshi.version>
+    <okhttp.version>3.11.0</okhttp.version>
+    <moshi.version>1.6.0</moshi.version>
     <retrofit.version>2.4.0</retrofit.version>
     <failsafe.version>1.1.0</failsafe.version>
     <mockito.version>2.8.9</mockito.version>
-    <junit.platform.version>1.0.0</junit.platform.version>
-    <junit.version>5.1.1</junit.version>
+    <junit.platform.version>1.2.0</junit.platform.version>
+    <junit.version>5.2.0</junit.version>
     <jsr305.version>3.0.2</jsr305.version>
     <java.version>1.8</java.version>
     <concurrentunit.version>0.4.3</concurrentunit.version>
@@ -89,11 +89,6 @@
       <artifactId>logging-interceptor</artifactId>
       <version>${okhttp.version}</version>
     </dependency>
-    <!-- dependency>
-      <groupId>net.jodah</groupId>
-      <artifactId>failsafe</artifactId>
-      <version>${failsafe.version}</version>
-    </dependency-->
 
     <!-- Auto Value and extensions -->
     <dependency>
@@ -203,7 +198,12 @@
       </plugin>
 
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.21.0</version>
+        <configuration>
+          <redirectTestOutputToFile>false</redirectTestOutputToFile>
+        </configuration>
         <dependencies>
           <dependency>
             <groupId>org.junit.platform</groupId>

@@ -1,12 +1,10 @@
 package com.oneops.infoblox.model.a;
 
 import com.google.auto.value.AutoValue;
-import com.oneops.infoblox.model.ref.Ref;
-import com.oneops.infoblox.model.ref.RefObject;
+import com.oneops.infoblox.model.Record;
 import com.squareup.moshi.Json;
 import com.squareup.moshi.JsonAdapter;
 import com.squareup.moshi.Moshi;
-import javax.annotation.Nullable;
 
 /**
  * Address record {@link com.oneops.infoblox.model.DNSRecord#A } response.
@@ -14,22 +12,25 @@ import javax.annotation.Nullable;
  * @author Suresh G
  */
 @AutoValue
-public abstract class ARec {
-
-  @RefObject
-  @Json(name = "_ref")
-  public abstract Ref ref();
+public abstract class ARec extends Record {
 
   @Json(name = "ipv4addr")
   public abstract String ipv4Addr();
 
   public abstract String name();
 
-  @Nullable
-  public abstract String view();
+  public static Builder builder() {
+    return new AutoValue_ARec.Builder();
+  }
 
-  public static ARec create(String ref, String ipv4Addr, String name, String view) {
-    return new AutoValue_ARec(Ref.of(ref), ipv4Addr, name, view);
+  @AutoValue.Builder
+  public abstract static class Builder extends RecBuilder<Builder> {
+
+    public abstract Builder ipv4Addr(String ipv4Addr);
+
+    public abstract Builder name(String name);
+
+    public abstract ARec build();
   }
 
   public static JsonAdapter<ARec> jsonAdapter(Moshi moshi) {
