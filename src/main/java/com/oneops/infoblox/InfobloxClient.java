@@ -1073,7 +1073,7 @@ public abstract class InfobloxClient {
    */
   public static Builder builder() {
     return new AutoValue_InfobloxClient.Builder()
-        .wapiVersion("2.7")
+        .wapiVersion("2.5")
         .dnsView("default")
         .ttl(5)
         .tlsVerify(true)
