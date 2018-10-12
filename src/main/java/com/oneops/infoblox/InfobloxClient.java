@@ -12,7 +12,6 @@ import com.oneops.infoblox.model.Error;
 import com.oneops.infoblox.model.JsonAdapterFactory;
 import com.oneops.infoblox.model.Record;
 import com.oneops.infoblox.model.Redacted;
-import com.oneops.infoblox.model.Result;
 import com.oneops.infoblox.model.SearchModifier;
 import com.oneops.infoblox.model.a.ARec;
 import com.oneops.infoblox.model.aaaa.AAAA;
@@ -662,8 +661,8 @@ public abstract class InfobloxClient {
       throws IOException {
     requireNonNull(attributeName, "customAttribute name is null");
     Map<String, String> options = new HashMap<>(1);
-    options.put(attributeName + "=", String.valueOf(value));
-    return exec(infoblox.queryNetwork(options)).result();
+    options.put(attributeName + ":", String.valueOf(value));
+    return exec(infoblox.queryNetworkCustomAttribute(options)).result();
   }
 
   // --------<AAAA Record>--------

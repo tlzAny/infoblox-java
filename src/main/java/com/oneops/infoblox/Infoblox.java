@@ -67,6 +67,9 @@ public interface Infoblox {
   String TTL_FIELDS = "_return_fields=view,ttl";
 
   String NETWORK_RETRIEVAL = "?_return_fields=network";
+
+  String RETRIEVAL_CUSTOM = "?_return_fields%2B=extattrs";
+
   // &_paging=1
 
   String NETWORK_MAXSRESULTS = "&_max_results=5000";
@@ -93,7 +96,15 @@ public interface Infoblox {
   Call<Result<ZoneDelegate>> modifyDelegatedZone(
       @Path(value = "ref", encoded = true) String ref, @Body Map<String, Object> req);
 
-  /** Network */
+  /**
+   * Network
+   *
+   * @param options
+   */
+  @GET("network" + RETRIEVAL_CUSTOM + NETWORK_MAXSRESULTS)
+  Call<Result<List<Network>>> queryNetworkCustomAttribute(
+      @QueryMap(encoded = true) Map<String, String> options);
+
   @GET("network" + NETWORK_RETRIEVAL + NETWORK_MAXSRESULTS)
   Call<Result<List<Network>>> queryNetwork(@QueryMap(encoded = true) Map<String, String> options);
 
