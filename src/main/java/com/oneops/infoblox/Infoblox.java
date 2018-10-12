@@ -6,6 +6,7 @@ import com.oneops.infoblox.model.aaaa.AAAA;
 import com.oneops.infoblox.model.cname.CNAME;
 import com.oneops.infoblox.model.host.Host;
 import com.oneops.infoblox.model.mx.MX;
+import com.oneops.infoblox.model.network.Network;
 import com.oneops.infoblox.model.ns.NS;
 import com.oneops.infoblox.model.ptr.PTR;
 import com.oneops.infoblox.model.srv.SRV;
@@ -22,6 +23,7 @@ import retrofit2.http.GET;
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
 import retrofit2.http.Path;
+import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
 
 /**
@@ -64,6 +66,11 @@ public interface Infoblox {
 
   String TTL_FIELDS = "_return_fields=view,ttl";
 
+  String NETWORK_RETRIEVAL = "?_return_fields=network";
+  // &_paging=1
+
+  String NETWORK_MAXSRESULTS = "&_max_results=5000";
+
   /** Auth zone Record */
   @GET("zone_auth?" + ZONE_AUTH_FIELDS)
   Call<Result<List<ZoneAuth>>> queryAuthZones();
@@ -85,6 +92,16 @@ public interface Infoblox {
   @PUT("zone_delegated?" + ZONE_DELEGATE_FIELDS)
   Call<Result<ZoneDelegate>> modifyDelegatedZone(
       @Path(value = "ref", encoded = true) String ref, @Body Map<String, Object> req);
+
+  /** Network */
+  @GET("network" + NETWORK_RETRIEVAL + NETWORK_MAXSRESULTS)
+  Call<Result<List<Network>>> queryNetwork(@QueryMap(encoded = true) Map<String, String> options);
+
+  @GET("network" + NETWORK_RETRIEVAL)
+  Call<Result<List<Network>>> queryNetwork(@Query("_max_results") Integer maxResults);
+
+  @GET("network" + NETWORK_RETRIEVAL + NETWORK_MAXSRESULTS)
+  Call<Result<List<Network>>> queryNetwork();
 
   /** Host Record */
   @GET("./record:host?" + HOST_FIELDS)

@@ -12,12 +12,14 @@ import com.oneops.infoblox.model.Error;
 import com.oneops.infoblox.model.JsonAdapterFactory;
 import com.oneops.infoblox.model.Record;
 import com.oneops.infoblox.model.Redacted;
+import com.oneops.infoblox.model.Result;
 import com.oneops.infoblox.model.SearchModifier;
 import com.oneops.infoblox.model.a.ARec;
 import com.oneops.infoblox.model.aaaa.AAAA;
 import com.oneops.infoblox.model.cname.CNAME;
 import com.oneops.infoblox.model.host.Host;
 import com.oneops.infoblox.model.mx.MX;
+import com.oneops.infoblox.model.network.Network;
 import com.oneops.infoblox.model.ptr.PTR;
 import com.oneops.infoblox.model.ref.RefObject;
 import com.oneops.infoblox.model.ttl.TTLRec;
@@ -617,6 +619,53 @@ public abstract class InfobloxClient {
         .collect(Collectors.toList());
   }
 
+  // --------<query network>--------
+  public List<Network> getNetworks(String networkName, SearchModifier modifier) throws IOException {
+    requireNonNull(networkName, "network name is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put("network" + modifier.getValue(), networkName);
+    return exec(infoblox.queryNetwork(options)).result();
+  }
+  // _max_results=50&_paging=1
+
+  /**
+   * Default max result is 5000
+   *
+   * @return
+   * @throws IOException
+   */
+  public List<Network> getAllNetworks() throws IOException {
+    return exec(infoblox.queryNetwork()).result();
+  }
+
+  /**
+   * Retrieve networks by max number of records
+   *
+   * @param maxResults
+   * @return
+   * @throws IOException
+   */
+  public List<Network> getAllNetworks(int maxResults) throws IOException {
+    return exec(infoblox.queryNetwork(maxResults)).result();
+  }
+
+  /**
+   * Idea is to define a boolean custom attribute on each network to query for i.e.
+   * valid4autoServerDeployment = true
+   *
+   * @param attributeName name of the custom attribute on 'network object'
+   * @param value expected value for the given custom attribute
+   * @return List of fo
+   * @throws IOException
+   */
+  public List<Network> getAllNetworkbyBooleanCustomAttribute(String attributeName, boolean value)
+      throws IOException {
+    requireNonNull(attributeName, "customAttribute name is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put(attributeName + "=", String.valueOf(value));
+    return exec(infoblox.queryNetwork(options)).result();
+  }
+
   // --------<AAAA Record>--------
   /**
    * Get IPv6 address records (AAAA) for the given domain name and search option.
@@ -947,7 +996,6 @@ public abstract class InfobloxClient {
   }
 
   // --------<PTR Record>--------
-
   /**
    * Get pointer records (PTR) for the given IP Address.
    *
@@ -1018,11 +1066,8 @@ public abstract class InfobloxClient {
   }
 
   // --------<TXT Record>--------
-
   // --------<SRV Record>--------
-
   // --------<NS Record>--------
-
   // --------<TTL>--------
   /**
    * Modify TTL for a record.

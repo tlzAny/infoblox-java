@@ -1,23 +1,13 @@
 package com.oneops.infoblox.model;
 
 import com.oneops.infoblox.model.ref.Ref;
-import com.oneops.infoblox.model.ref.RefObject;
-import com.squareup.moshi.Json;
 
 /**
  * Base class for all Infoblox records.
  *
  * @author Suresh
  */
-public abstract class Record {
-
-  /**
-   * Record object reference.
-   *
-   * @return {@link Ref}
-   */
-  @Json(name = "_ref")
-  public abstract @RefObject Ref ref();
+public abstract class Record extends BaseRecord {
 
   /**
    * IBA view.
