@@ -38,6 +38,7 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -474,6 +475,57 @@ public abstract class InfobloxClient {
   }
 
   /**
+   * Create host record with next free IP address in network (IP-range).
+   *
+   * @param hostName full qualified domain name to be created
+   * @param mac valid mac-address (lowercase)
+   * @param targetSubnet string representation with / notation (192.168.1.0/24)
+   */
+  public Host createHostRecNextAvailIP(String hostName, String mac, Network targetSubnet)
+      throws IOException {
+      
+    requireNonNull(mac, "mac name is null");
+    requireNonNull(hostName, "hostName is null");
+
+    // Sample data to achieve
+    /*
+        "ipv4addrs": [
+        {
+            "ipv4addr": {
+                "_object_function": "next_available_ip",
+                "_object": "network",
+                "_object_parameters": {"network": "192.168.1.0/24"},
+                "_result_field": "ips",
+            },
+            "mac": "aa:bb:cc:11:22:21"
+        }
+    ]
+    */
+
+    Map<String, Object> entry = new HashMap<>(1);
+    entry.put("_object_function", "next_available_ip");
+    entry.put("_object", "network");
+    Map<String, String> networkMap = new HashMap<>(1);
+
+    // networkMap.put("network", "192.168.1.0");
+    networkMap.put("network", targetSubnet.network());
+    entry.put("_object_parameters", networkMap);
+    entry.put("_result_field", "ips");
+
+    Map<String, Object> ipMap = new HashMap<>(1);
+    ipMap.put("ipv4addr", entry);
+    ipMap.put("mac", mac);
+
+    List<Object> listEntries = new ArrayList(1);
+    listEntries.add(ipMap);
+
+    Map<String, Object> req = newTTLReq();
+    req.put("name", hostName);
+    req.put("ipv4addrs", listEntries);
+    return exec(infoblox.createHostRec(req)).result();
+  }
+
+  /**
    * Creates IBA host record.
    *
    * @param domainName hostname in fqdn.
@@ -652,9 +704,9 @@ public abstract class InfobloxClient {
    * Idea is to define a boolean custom attribute on each network to query for i.e.
    * valid4autoServerDeployment = true
    *
-   * @param attributeName name of the custom attribute on 'network object'
+   * @param attributeName name of the custom attribute on 'network' object in IPAM
    * @param value expected value for the given custom attribute
-   * @return List of fo
+   * @return List of network objects
    * @throws IOException
    */
   public List<Network> getAllNetworkbyBooleanCustomAttribute(String attributeName, boolean value)
