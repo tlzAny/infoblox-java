@@ -483,7 +483,7 @@ public abstract class InfobloxClient {
    */
   public Host createHostRecNextAvailIP(String hostName, String mac, Network targetSubnet)
       throws IOException {
-      
+
     requireNonNull(mac, "mac name is null");
     requireNonNull(hostName, "hostName is null");
 
@@ -703,17 +703,20 @@ public abstract class InfobloxClient {
   /**
    * Idea is to define a boolean custom attribute on each network to query for i.e.
    * valid4autoServerDeployment = true
+   * https://10.4.96.18/wapi/v2.7/network?_return_fields%2B=extattrs&*Zone%3A~=+*&_max_results=5000
    *
    * @param attributeName name of the custom attribute on 'network' object in IPAM
-   * @param value expected value for the given custom attribute
    * @return List of network objects
    * @throws IOException
    */
-  public List<Network> getAllNetworkbyBooleanCustomAttribute(String attributeName, boolean value)
-      throws IOException {
+  public List<Network> getAllNetworkbyCustomAttribute(String attributeName) throws IOException {
+    String CUSTOM_ATTR_PREFIX = "*";
+    String REGEX_QUERY = "~";
+    String ANY_VALUE = "+*";
+
     requireNonNull(attributeName, "customAttribute name is null");
     Map<String, String> options = new HashMap<>(1);
-    options.put(attributeName + ":", String.valueOf(value));
+    options.put(CUSTOM_ATTR_PREFIX + attributeName + REGEX_QUERY, ANY_VALUE);
     return exec(infoblox.queryNetworkCustomAttribute(options)).result();
   }
 
