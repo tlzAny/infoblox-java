@@ -703,7 +703,7 @@ public abstract class InfobloxClient {
   /**
    * Idea is to define a boolean custom attribute on each network to query for i.e.
    * valid4autoServerDeployment = true
-   * https://10.4.96.18/wapi/v2.7/network?_return_fields%2B=extattrs&*Zone%3A~=+*&_max_results=5000
+   * https://{host}/wapi/v2.7/network?_return_fields%2B=extattrs&*Zone%3A~=+*&_max_results=5000
    *
    * @param attributeName name of the custom attribute on 'network' object in IPAM
    * @return List of network objects
