@@ -5,6 +5,7 @@ import com.oneops.infoblox.model.a.ARec;
 import com.oneops.infoblox.model.aaaa.AAAA;
 import com.oneops.infoblox.model.cname.CNAME;
 import com.oneops.infoblox.model.host.Host;
+import com.oneops.infoblox.model.ipv4address.IPv4Address;
 import com.oneops.infoblox.model.mx.MX;
 import com.oneops.infoblox.model.network.Network;
 import com.oneops.infoblox.model.ns.NS;
@@ -70,6 +71,8 @@ public interface Infoblox {
 
   String RETRIEVAL_CUSTOM = "?_return_fields%2B=extattrs";
 
+  String IPV4_ADDRESS_RETRIEVAL = "?_return_fields=ip_address,status";
+
   // &_paging=1
 
   String NETWORK_MAXSRESULTS = "&_max_results=5000";
@@ -113,6 +116,16 @@ public interface Infoblox {
 
   @GET("network" + NETWORK_RETRIEVAL + NETWORK_MAXSRESULTS)
   Call<Result<List<Network>>> queryNetwork();
+
+  /**
+   * IPv4Addr
+   *
+   * @param options -> status and network identifier
+   * @return list of IPv4Address
+   */
+  @GET("ipv4address" + IPV4_ADDRESS_RETRIEVAL)
+  Call<Result<List<IPv4Address>>> queryIpv4Adress(
+      @QueryMap(encoded = true) Map<String, String> options);
 
   /** Host Record */
   @GET("./record:host?" + HOST_FIELDS)

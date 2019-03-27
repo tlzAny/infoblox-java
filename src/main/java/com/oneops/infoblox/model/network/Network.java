@@ -38,7 +38,7 @@ public abstract class Network extends BaseRecord {
 
     public abstract Network build();
   }
-  
+
 
   public static JsonAdapter<Network> jsonAdapter(Moshi moshi) {
     return new AutoValue_Network.MoshiJsonAdapter(moshi);

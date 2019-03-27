@@ -17,6 +17,7 @@ import com.oneops.infoblox.model.a.ARec;
 import com.oneops.infoblox.model.aaaa.AAAA;
 import com.oneops.infoblox.model.cname.CNAME;
 import com.oneops.infoblox.model.host.Host;
+import com.oneops.infoblox.model.ipv4address.IPv4Address;
 import com.oneops.infoblox.model.mx.MX;
 import com.oneops.infoblox.model.network.Network;
 import com.oneops.infoblox.model.ptr.PTR;
@@ -328,6 +329,18 @@ public abstract class InfobloxClient {
   }
 
   /**
+   * Fetch all Authoritative Zones.
+   *
+   * @param field
+   * @param regex
+   * @return list of {@link ZoneAuth} * @param domainName fqdn.
+   * @throws IOException if a problem occurred talking to the infoblox.
+   */
+  public List<ZoneAuth> getAuthZonesByFqdnRegex(String field, String regex) throws IOException {
+    return exec(infoblox.queryAuthZones()).result();
+  }
+
+  /**
    * Fetch all authoritative zones for the given domain name and search option.
    *
    * @param domainName fqdn.
@@ -523,6 +536,16 @@ public abstract class InfobloxClient {
     req.put("name", hostName);
     req.put("ipv4addrs", listEntries);
     return exec(infoblox.createHostRec(req)).result();
+  }
+
+  public List<IPv4Address> getIPv4AdressesByStatus(String network, String status)
+      throws IOException {
+
+    Map<String, String> options = new HashMap<>(2);
+    options.put("network", network);
+    options.put("status", status);
+
+    return exec(infoblox.queryIpv4Adress(options)).result();
   }
 
   /**
