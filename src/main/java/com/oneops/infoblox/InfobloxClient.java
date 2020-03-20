@@ -513,9 +513,11 @@ public abstract class InfobloxClient {
             "mac": "aa:bb:cc:11:22:21"
         }
     ]
-    */
-
+         */
     Map<String, Object> entry = new HashMap<>(1);
+
+    entry.put("_object", "network");
+
     entry.put("_object_function", "next_available_ip");
     entry.put("_object", "network");
     Map<String, String> networkMap = new HashMap<>(1);
@@ -546,6 +548,41 @@ public abstract class InfobloxClient {
     options.put("status", status);
 
     return exec(infoblox.queryIpv4Adress(options)).result();
+  }
+
+  public List<IPv4Address> getAvailableIPv4AdressesinDHCPRange(
+      String network, String types, String macFilter, int maxResults) throws IOException {
+
+    String REGEX_QUERY = "~";
+
+    Map<String, String> options = new HashMap<>(2);
+    options.put("network", network);
+    options.put("types", types);
+    options.put("mac_address" + REGEX_QUERY, macFilter);
+
+    if (maxResults > 0) {
+      options.put("_max_results", String.valueOf(maxResults));
+    }
+
+    return exec(infoblox.queryIpv4Adress(options)).result();
+  }
+
+  public Host createHostRecWithIP(String mac, String hostName, String ipv4Addr) throws IOException {
+    requireNonNull(mac, "mac name is null");
+    requireNonNull(hostName, "hostName is null");
+    requireNonNull(ipv4Addr, "hostName is null");
+
+    Map<String, Object> ipMap = new HashMap<>(1);
+    ipMap.put("ipv4addr", ipv4Addr);
+    ipMap.put("mac", mac);
+
+    List<Object> listEntries = new ArrayList(1);
+    listEntries.add(ipMap);
+
+    Map<String, Object> req = newTTLReq();
+    req.put("ipv4addrs", listEntries);
+    req.put("name", hostName);
+    return exec(infoblox.createHostRec(req)).result();
   }
 
   /**
@@ -697,10 +734,20 @@ public abstract class InfobloxClient {
   public List<Network> getNetworks(String networkName, SearchModifier modifier) throws IOException {
     requireNonNull(networkName, "network name is null");
     Map<String, String> options = new HashMap<>(1);
-    options.put("network" + modifier.getValue(), networkName);
+    options.put("network", networkName);
     return exec(infoblox.queryNetwork(options)).result();
   }
   // _max_results=50&_paging=1
+
+  public List<Map<String, Object>> getDomainForNetwork(String networkName, SearchModifier modifier)
+      throws IOException {
+    requireNonNull(networkName, "network name is null");
+    Map<String, String> options = new HashMap<>(1);
+    options.put("network", networkName);
+    Network network = exec(infoblox.queryNetworkDomainName(options)).result().get(0);
+
+    return network.options();
+  }
 
   /**
    * Default max result is 5000

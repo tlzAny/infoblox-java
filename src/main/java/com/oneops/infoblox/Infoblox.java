@@ -73,6 +73,8 @@ public interface Infoblox {
 
   String IPV4_ADDRESS_RETRIEVAL = "?_return_fields=ip_address,status";
 
+  String NETWORK_GET_DOMAIN_NAME = "?_return_fields=network,options";
+
   // &_paging=1
 
   String NETWORK_MAXSRESULTS = "&_max_results=5000";
@@ -116,6 +118,10 @@ public interface Infoblox {
 
   @GET("network" + NETWORK_RETRIEVAL + NETWORK_MAXSRESULTS)
   Call<Result<List<Network>>> queryNetwork();
+
+  @GET("network" + NETWORK_GET_DOMAIN_NAME)
+  Call<Result<List<Network>>> queryNetworkDomainName(
+      @QueryMap(encoded = true) Map<String, String> options);
 
   /**
    * IPv4Addr

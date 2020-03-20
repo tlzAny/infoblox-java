@@ -4,6 +4,7 @@ import com.google.auto.value.AutoValue;
 import com.oneops.infoblox.model.BaseRecord;
 import com.squareup.moshi.JsonAdapter;
 import com.squareup.moshi.Moshi;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -23,6 +24,9 @@ public abstract class Network extends BaseRecord {
   @Nullable
   public abstract Map<String, Map<String, String>> extattrs();
 
+  @Nullable
+  public abstract List<Map<String, Object>> options();
+
   public static Builder builder() {
     return new AutoValue_Network.Builder();
   }
@@ -36,9 +40,10 @@ public abstract class Network extends BaseRecord {
 
     public abstract Builder extattrs(@Nullable Map<String, Map<String, String>> name);
 
+    public abstract Builder options(@Nullable List<Map<String, Object>> name);
+
     public abstract Network build();
   }
-
 
   public static JsonAdapter<Network> jsonAdapter(Moshi moshi) {
     return new AutoValue_Network.MoshiJsonAdapter(moshi);
